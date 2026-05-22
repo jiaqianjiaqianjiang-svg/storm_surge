@@ -42,6 +42,19 @@ def _find_variable_name(ds: xr.Dataset, logical_name: str) -> str:
     raise KeyError(f"无法识别 {logical_name} 变量名，文件变量: {list(ds.data_vars)}")
 
 
+def _to_numpy(da: xr.DataArray, dtype: str | np.dtype | None = None) -> np.ndarray:
+    """兼容不同 xarray 版本的 DataArray 转 numpy。
+
+    你实验室环境中的 xarray 版本不支持 ``DataArray.to_numpy(dtype=...)``，
+    所以统一先调用 ``to_numpy()``，再用 numpy 的 ``astype`` 转类型。
+    """
+
+    arr = da.to_numpy()
+    if dtype is not None:
+        arr = arr.astype(dtype, copy=False)
+    return arr
+
+
 def find_year_file(variable: str, year: int) -> Path | None:
     """在变量目录中自动寻找某一年的 GRIB 文件。"""
 
@@ -98,7 +111,7 @@ def subset_and_interp_station_region(
     lon_max = site_lon_for_data + half_size
 
     # xarray slice 在纬度降序时需要反向。
-    lat_values = da["lat"].to_numpy()
+    lat_values = _to_numpy(da["lat"])
     if lat_values[0] > lat_values[-1]:
         region = da.sel(lat=slice(lat_max, lat_min), lon=slice(lon_min, lon_max))
     else:
@@ -185,7 +198,7 @@ class Era20cReader:
             total_sq = 0.0
             count = 0
             for year in years:
-                arr = self._load_raw_year(variable, year).to_numpy(dtype="float64")
+                arr = _to_numpy(self._load_raw_year(variable, year), dtype="float64")
                 valid = np.isfinite(arr)
                 values = arr[valid]
                 total += values.sum()
@@ -224,10 +237,15 @@ class Era20cReader:
             for year in sorted({start.year, date.year}):
                 pieces.append(self.get_normalized_year(variable, year))
             da = xr.concat(pieces, dim="time").sortby("time")
-            selected = da.sel(time=expected_times)
+            # 使用 reindex 而不是 sel。sel 在缺少某个 3 小时时间片时会直接抛
+            # KeyError；reindex 会保留目标时间轴并填 NaN，便于后面统一判断。
+            selected = da.reindex(time=expected_times)
             if selected.sizes.get("time", 0) != 16:
                 return None
-            channels.append(selected.to_numpy(dtype="float32"))
+            selected_arr = _to_numpy(selected, dtype="float32")
+            if not np.isfinite(selected_arr).all():
+                return None
+            channels.append(selected_arr)
 
         sample = np.concatenate(channels, axis=0)
         if sample.shape != (48, GRID_SIZE, GRID_SIZE):
