@@ -72,11 +72,18 @@ def find_year_file(variable: str, year: int) -> Path | None:
 def open_era20c_grib(path: Path, variable: str) -> xr.DataArray:
     """读取单个 ERA-20C GRIB 文件并返回目标变量 DataArray。"""
 
-    ds = xr.open_dataset(
-        path,
-        engine="cfgrib",
-        backend_kwargs={"indexpath": ""},
-    )
+    try:
+        ds = xr.open_dataset(
+            path,
+            engine="cfgrib",
+            backend_kwargs={"indexpath": ""},
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            f"无法读取 GRIB 文件: {path}\n"
+            "请确认 cfgrib/eccodes 可用，且该 GRIB 文件没有损坏。"
+        ) from exc
+
     var_name = _find_variable_name(ds, variable)
     da = ds[var_name]
 
@@ -84,8 +91,22 @@ def open_era20c_grib(path: Path, variable: str) -> xr.DataArray:
     lon_name = _find_coord_name(ds, ("longitude", "lon"))
     time_name = _find_coord_name(ds, ("time", "valid_time"))
 
-    # 统一坐标名，后续处理更简单。
-    da = da.rename({lat_name: "lat", lon_name: "lon", time_name: "time"})
+    print(f"[ERA] 变量 {variable} 自动识别为: {var_name}")
+    print(f"[ERA] 原始维度: {dict(da.sizes)}")
+
+    # 统一坐标名，后续处理更简单。这里只重命名实际存在且不同名的坐标，
+    # 避免 valid_time 与 time 同时存在时发生命名冲突。
+    rename_map = {}
+    if lat_name != "lat":
+        rename_map[lat_name] = "lat"
+    if lon_name != "lon":
+        rename_map[lon_name] = "lon"
+    if time_name != "time":
+        rename_map[time_name] = "time"
+    if rename_map:
+        da = da.rename(rename_map)
+    if "time" not in da.dims:
+        raise ValueError(f"ERA 变量 {variable} 中没有 time 维度，实际维度: {da.dims}")
     return da
 
 
@@ -119,6 +140,12 @@ def subset_and_interp_station_region(
 
     if region.sizes.get("lat", 0) < 2 or region.sizes.get("lon", 0) < 2:
         raise ValueError("站点周围区域格点过少，请检查经纬度或 ERA 文件坐标")
+
+    print(
+        "[ERA] 裁剪区域: "
+        f"lat {lat_min:.3f}~{lat_max:.3f}, lon {lon_min:.3f}~{lon_max:.3f}; "
+        f"原区域格点=({region.sizes.get('lat')}, {region.sizes.get('lon')})"
+    )
 
     target_lat = np.linspace(lat_min, lat_max, grid_size)
     target_lon = np.linspace(lon_min, lon_max, grid_size)
@@ -186,6 +213,7 @@ class Era20cReader:
         da = open_era20c_grib(path, variable)
         da = subset_and_interp_station_region(da)
         da = da.astype("float32")
+        print(f"[ERA] {year} {variable} 插值后 shape: {tuple(da.shape)}")
         self._put_cache(cache_key, da)
         return da
 
@@ -201,9 +229,13 @@ class Era20cReader:
                 arr = _to_numpy(self._load_raw_year(variable, year), dtype="float64")
                 valid = np.isfinite(arr)
                 values = arr[valid]
+                if values.size == 0:
+                    raise ValueError(f"{year} 年 {variable} 插值后没有任何有效值")
                 total += values.sum()
                 total_sq += np.square(values).sum()
                 count += values.size
+            if count == 0:
+                raise ValueError(f"{variable} 没有任何有效 ERA 数据，无法标准化")
             mean = total / count
             variance = max(total_sq / count - mean * mean, 1e-12)
             std = float(np.sqrt(variance))
@@ -251,3 +283,18 @@ class Era20cReader:
         if sample.shape != (48, GRID_SIZE, GRID_SIZE):
             raise ValueError(f"样本 shape 异常: {sample.shape}")
         return sample
+
+    def explain_missing_for_day(self, date: pd.Timestamp) -> str:
+        """给出某一天无法构建样本时最常见的原因，便于日志排查。"""
+
+        date = pd.Timestamp(date).normalize()
+        start = date - pd.Timedelta(days=1)
+        required_years = sorted({start.year, date.year})
+        missing_files: list[str] = []
+        for year in required_years:
+            for variable in VARIABLE_ORDER:
+                if find_year_file(variable, year) is None:
+                    missing_files.append(f"{year}-{variable}")
+        if missing_files:
+            return "缺少 ERA 文件: " + ", ".join(missing_files)
+        return "ERA 时间片不足或插值后包含 NaN"
