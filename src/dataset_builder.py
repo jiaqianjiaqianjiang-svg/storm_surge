@@ -24,18 +24,28 @@ def collect_available_samples(
     sample_dates: list[pd.Timestamp] = []
     sample_y: list[float] = []
     year_counts: dict[int, int] = {}
+    skipped_count = 0
+    skipped_reasons: dict[str, int] = {}
 
     for date, row in daily_max.iterrows():
         y_value = row["daily_max_surge"]
         if pd.isna(y_value):
+            skipped_count += 1
+            skipped_reasons["y 缺失"] = skipped_reasons.get("y 缺失", 0) + 1
             continue
 
         try:
             sample = era_reader.build_predictor_for_day(pd.Timestamp(date))
-        except (KeyError, FileNotFoundError, ValueError):
-            sample = None
+        except (KeyError, FileNotFoundError, ValueError) as exc:
+            skipped_count += 1
+            reason = str(exc).splitlines()[0]
+            skipped_reasons[reason] = skipped_reasons.get(reason, 0) + 1
+            continue
 
         if sample is None:
+            skipped_count += 1
+            reason = era_reader.explain_missing_for_day(pd.Timestamp(date))
+            skipped_reasons[reason] = skipped_reasons.get(reason, 0) + 1
             continue
 
         ts = pd.Timestamp(date).normalize()
@@ -45,6 +55,9 @@ def collect_available_samples(
 
     for year in sorted(year_counts):
         print(f"[DATASET] {year} 年生成样本数: {year_counts[year]:,}")
+    print(f"[DATASET] 跳过日期数: {skipped_count:,}")
+    for reason, count in sorted(skipped_reasons.items(), key=lambda item: item[1], reverse=True):
+        print(f"[DATASET] 跳过原因: {reason} -> {count:,} 天")
 
     if not sample_dates:
         raise ValueError("没有生成任何 CNN 样本，请检查 GESLA 标签和 ERA 时间范围是否重叠")
