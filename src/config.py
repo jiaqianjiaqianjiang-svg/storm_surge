@@ -1,0 +1,8 @@
+﻿ERA20C_DIR = r"F:\ERA20C"
+GESLA_DIR = r"F:\GESLA\GESLA3"
+
+SITE_NAME = "Xiamen"
+SITE_FILE = r"F:\GESLA\GESLA3\xiamen-376a-chn-uhslc"
+
+SITE_LAT = 24.45
+SITE_LON = 118.067

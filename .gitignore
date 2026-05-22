@@ -1,0 +1,28 @@
+﻿# data
+data/
+outputs/
+models/
+figures/
+logs/
+*.npy
+*.npz
+*.nc
+*.grb
+*.grib
+*.csv
+*.pth
+*.pt
+
+# python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+.env
+
+# vscode
+.vscode/
+
+# system
+.DS_Store
+Thumbs.db
