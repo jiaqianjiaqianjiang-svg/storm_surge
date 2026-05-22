@@ -12,6 +12,8 @@ Thumbs.db
 # 真实数据与大文件：不要提交到 GitHub
 data/
 outputs/
+models/
+figures/
 *.grb
 *.grib
 *.idx
@@ -21,6 +23,7 @@ outputs/
 *.csv
 *.pth
 *.pt
+*.png
 *.ckpt
 *.h5
 *.hdf5
