@@ -1,28 +1,36 @@
-﻿# data
+.idea/
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+Thumbs.db
+.claude/settings.local.json
+.claude/*.log
+
+# 真实数据与大文件：不要提交到 GitHub
 data/
 outputs/
-models/
-figures/
-logs/
-*.npy
-*.npz
-*.nc
 *.grb
 *.grib
+*.idx
+*.nc
+*.npy
+*.npz
 *.csv
 *.pth
 *.pt
+*.ckpt
+*.h5
+*.hdf5
+*.zip
+*.rar
+*.7z
 
-# python
-__pycache__/
-*.pyc
-.ipynb_checkpoints/
-.venv/
+# 本地环境
 .env
-
-# vscode
-.vscode/
-
-# system
-.DS_Store
-Thumbs.db
+.venv/
+venv/
+env/
+*.egg-info/
