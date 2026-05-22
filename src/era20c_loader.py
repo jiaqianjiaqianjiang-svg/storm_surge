@@ -147,8 +147,13 @@ def subset_and_interp_station_region(
         f"原区域格点=({region.sizes.get('lat')}, {region.sizes.get('lon')})"
     )
 
-    target_lat = np.linspace(lat_min, lat_max, grid_size)
-    target_lon = np.linspace(lon_min, lon_max, grid_size)
+    # 直接用理论边界插值时，若目标点略超出原始 ERA 网格范围，xarray 会在
+    # 边缘产生 NaN。为了保证 CNN 输入不含 NaN，这里在已裁剪出的真实 ERA
+    # 区域内部生成 40×40 目标网格。区域仍然是站点周围约 10°×10°。
+    region_lat = _to_numpy(region["lat"], dtype="float64")
+    region_lon = _to_numpy(region["lon"], dtype="float64")
+    target_lat = np.linspace(float(np.min(region_lat)), float(np.max(region_lat)), grid_size)
+    target_lon = np.linspace(float(np.min(region_lon)), float(np.max(region_lon)), grid_size)
     interpolated = region.interp(lat=target_lat, lon=target_lon)
     return interpolated.transpose("time", "lat", "lon")
 

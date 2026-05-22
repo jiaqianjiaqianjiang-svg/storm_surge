@@ -12,9 +12,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import sys
 from pathlib import Path
+
+# Windows + conda 环境中，PyTorch、numpy、matplotlib 可能同时加载不同来源的
+# OpenMP 运行库。这里在导入这些数值库之前设置兼容开关，避免训练结束绘图时
+# 出现 libiomp5md.dll already initialized 崩溃。若你的环境没有这个问题，该设置
+# 不会影响正常运行。
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 import numpy as np
 import pandas as pd
@@ -65,7 +72,10 @@ class NpyStormSurgeDataset(Dataset):
         return int(self.y.shape[0])
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
-        x = torch.from_numpy(np.asarray(self.x[index], dtype=np.float32))
+        # mmap_mode='r' 读出的数组是只读视图。PyTorch 会警告 non-writable tensor，
+        # 因此这里显式 copy 一份可写数组，避免潜在未定义行为。
+        x_array = np.array(self.x[index], dtype=np.float32, copy=True)
+        x = torch.from_numpy(x_array)
         y = torch.tensor(self.y[index], dtype=torch.float32)
         return x, y
 
@@ -128,6 +138,79 @@ def inverse_transform_y(y_standardized: np.ndarray, mean: float, std: float) -> 
     """将标准化后的 y 还原到原始 storm surge 单位。"""
 
     return y_standardized * std + mean
+
+
+def summarize_array_file(path: Path, mmap: bool = True) -> dict[str, object]:
+    """检查 .npy 文件的 shape、dtype、NaN 和 Inf。
+
+    训练前先做这个检查，可以尽早发现预处理输出中是否存在坏值。
+    对 X 这种大文件使用 mmap，避免一次性读入内存。
+    """
+
+    arr = np.load(path, mmap_mode="r" if mmap else None)
+    total = int(arr.size)
+    nan_count = int(np.isnan(arr).sum())
+    inf_count = int(np.isinf(arr).sum())
+    finite_count = total - nan_count - inf_count
+
+    summary = {
+        "path": str(path),
+        "shape": tuple(int(v) for v in arr.shape),
+        "dtype": str(arr.dtype),
+        "total": total,
+        "finite": finite_count,
+        "nan": nan_count,
+        "inf": inf_count,
+    }
+
+    finite_values = arr[np.isfinite(arr)]
+    if finite_values.size > 0:
+        summary["min"] = float(np.min(finite_values))
+        summary["max"] = float(np.max(finite_values))
+        summary["mean"] = float(np.mean(finite_values))
+    else:
+        summary["min"] = None
+        summary["max"] = None
+        summary["mean"] = None
+    return summary
+
+
+def validate_training_arrays(output_dir: Path) -> None:
+    """训练前检查 X/y 是否含 NaN/Inf。
+
+    如果发现坏值，直接停止训练，并提示重新运行预处理。继续用坏值训练只会得到
+    NaN loss 和无效模型。
+    """
+
+    print("[CHECK] 开始检查预处理输出数组...")
+    files = [
+        ("X_train", output_dir / "X_train.npy", True),
+        ("y_train", output_dir / "y_train.npy", False),
+        ("X_val", output_dir / "X_val.npy", True),
+        ("y_val", output_dir / "y_val.npy", False),
+    ]
+
+    bad_files: list[dict[str, object]] = []
+    for name, path, mmap in files:
+        summary = summarize_array_file(path, mmap=mmap)
+        print(
+            f"[CHECK] {name}: shape={summary['shape']}, dtype={summary['dtype']}, "
+            f"nan={summary['nan']}, inf={summary['inf']}, "
+            f"min={summary['min']}, max={summary['max']}, mean={summary['mean']}"
+        )
+        if summary["nan"] or summary["inf"]:
+            bad_files.append(summary)
+
+    if bad_files:
+        details = "\n".join(
+            f"- {item['path']}: nan={item['nan']}, inf={item['inf']}, shape={item['shape']}"
+            for item in bad_files
+        )
+        raise ValueError(
+            "训练数据中存在 NaN/Inf，已停止训练。\n"
+            f"{details}\n"
+            "请重新运行预处理代码。新版预处理会跳过 ERA 时间片不足或插值后含 NaN 的日期。"
+        )
 
 
 def run_one_epoch(
@@ -214,6 +297,8 @@ def main() -> None:
         path = output_dir / name
         if not path.exists():
             raise FileNotFoundError(f"缺少预处理输出文件: {path}")
+
+    validate_training_arrays(output_dir)
 
     train_dataset = NpyStormSurgeDataset(output_dir / "X_train.npy", output_dir / "y_train.npy")
     val_dataset = NpyStormSurgeDataset(output_dir / "X_val.npy", output_dir / "y_val.npy")
