@@ -35,7 +35,10 @@ def separate_tide_with_utide(df: pd.DataFrame, lat: float = SITE_LAT) -> pd.Data
         observed,
         lat=lat,
         method="ols",
-        conf_int="linear",
+        # 预处理只需要调和常数和重建潮汐，不需要置信区间。
+        # 关闭置信区间可避免 UTide 在规则小时数据上额外计算 periodogram 时
+        # 产生无关的 divide-by-zero warning。
+        conf_int="none",
         trend=False,
         verbose=False,
     )
