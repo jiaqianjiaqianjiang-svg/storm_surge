@@ -69,7 +69,10 @@ STEPS_PER_SAMPLE = STEPS_PER_DAY * INPUT_DAYS
 
 # 三个变量拼接后，单个样本通道数为 16 × 3 = 48。
 VARIABLE_ORDER = ("u10", "v10", "slp")
-INPUT_CHANNELS = STEPS_PER_SAMPLE * len(VARIABLE_ORDER)
+TIME_TILE_ROWS = 4
+TIME_TILE_COLS = 4
+INPUT_CHANNELS = len(VARIABLE_ORDER)
+MODEL_GRID_SIZE = GRID_SIZE * TIME_TILE_ROWS
 
 
 # =========================
@@ -79,6 +82,8 @@ INPUT_CHANNELS = STEPS_PER_SAMPLE * len(VARIABLE_ORDER)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_ROOT = PROJECT_ROOT / "outputs"
 XIAMEN_OUTPUT_DIR = OUTPUT_ROOT / "xiamen"
+CACHE_ROOT = PROJECT_ROOT / "cache"
+ERA20C_CACHE_DIR = CACHE_ROOT / "xiamen" / "era20c_yearly"
 
 
 # =========================

@@ -12,6 +12,7 @@ import xarray as xr
 
 from config import (
     ERA20C_VARIABLE_CANDIDATES,
+    ERA20C_CACHE_DIR,
     ERA20C_VARIABLE_DIRS,
     GRID_SIZE,
     REGION_HALF_SIZE_DEG,
@@ -78,6 +79,12 @@ def find_year_file(variable: str, year: int) -> Path | None:
         if matches:
             return matches[0]
     return None
+
+
+def cache_path_for_year(variable: str, year: int) -> Path:
+    """返回裁剪插值后 ERA 年文件的本地缓存路径。"""
+
+    return ERA20C_CACHE_DIR / f"xiamen_{variable}_{year}_{GRID_SIZE}x{GRID_SIZE}.nc"
 
 
 def open_era20c_grib(path: Path, variable: str) -> xr.DataArray:
@@ -230,6 +237,13 @@ class Era20cReader:
             self._cache.move_to_end(cache_key)
             return self._cache[cache_key]
 
+        cache_path = cache_path_for_year(variable, year)
+        if cache_path.exists():
+            print(f"[ERA] 读取缓存 {year} {variable}: {cache_path}")
+            da = xr.open_dataarray(cache_path).load().astype("float32")
+            self._put_cache(cache_key, da)
+            return da
+
         path = find_year_file(variable, year)
         if path is None:
             raise FileNotFoundError(f"{year} 年 {variable} 文件不存在")
@@ -239,6 +253,10 @@ class Era20cReader:
         da = subset_and_interp_station_region(da)
         da = da.astype("float32")
         print(f"[ERA] {year} {variable} 插值后 shape: {tuple(da.shape)}")
+        da.name = variable
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        da.to_netcdf(cache_path)
+        print(f"[ERA] 写入缓存 {year} {variable}: {cache_path}")
         self._put_cache(cache_key, da)
         return da
 

@@ -101,6 +101,9 @@ def parse_args() -> argparse.Namespace:
             "GESLA 常见单位为米，因此默认 100。最终论文对比指标使用厘米计算。"
         ),
     )
+    parser.add_argument("--patience", type=int, default=10, help="Early stopping patience")
+    parser.add_argument("--min-delta", type=float, default=1e-5, help="Minimum validation loss improvement for early stopping")
+    parser.add_argument("--extreme-percentile", type=float, default=95.0, help="Percentile threshold for extreme surge validation")
     return parser.parse_args()
 
 
@@ -345,7 +348,7 @@ def main() -> None:
             pin_memory=device.type == "cuda",
         )
 
-        model = StormSurgeCNN(in_channels=48).to(device)
+        model = StormSurgeCNN(in_channels=int(train_dataset.x.shape[1])).to(device)
         optimizer = torch.optim.SGD(
             model.parameters(),
             lr=args.lr,
@@ -355,19 +358,29 @@ def main() -> None:
 
         best_val_loss = float("inf")
         best_state = None
+        best_epoch = 0
+        epochs_without_improvement = 0
         for epoch in range(1, args.epochs + 1):
             train_loss = run_one_epoch(model, train_loader, criterion, device, optimizer)
             val_loss = run_one_epoch(model, val_loader, criterion, device, optimizer=None)
             history.append({"seed": seed, "epoch": epoch, "train_loss": train_loss, "val_loss": val_loss})
 
-            if val_loss < best_val_loss:
+            if val_loss < best_val_loss - args.min_delta:
                 best_val_loss = val_loss
+                best_epoch = epoch
                 best_state = {key: value.detach().cpu() for key, value in model.state_dict().items()}
+                epochs_without_improvement = 0
+            else:
+                epochs_without_improvement += 1
 
             print(
                 f"[TRAIN] seed={seed} epoch={epoch:03d}/{args.epochs:03d} "
-                f"train_loss={train_loss:.6f} val_loss={val_loss:.6f}"
+                f"train_loss={train_loss:.6f} val_loss={val_loss:.6f} "
+                f"best_epoch={best_epoch:03d} no_improve={epochs_without_improvement}/{args.patience}"
             )
+            if epochs_without_improvement >= args.patience:
+                print(f"[TRAIN] seed={seed} early stopping at epoch {epoch}, best_epoch={best_epoch}")
+                break
 
         if best_state is not None:
             model.load_state_dict(best_state)
@@ -383,6 +396,9 @@ def main() -> None:
                 "momentum": args.momentum,
                 "weight_decay": args.weight_decay,
                 "best_val_loss": best_val_loss,
+                "best_epoch": best_epoch,
+                "patience": args.patience,
+                "min_delta": args.min_delta,
                 "y_scaler": {"mean": y_mean, "std": y_std},
             },
             model_path,
@@ -406,6 +422,8 @@ def main() -> None:
     pred_ensemble_cm = pred_ensemble_raw * args.surge_unit_scale_to_cm
 
     dates_val = np.load(output_dir / "dates_val.npy").astype("datetime64[D]").astype(str)
+    extreme_threshold_cm = float(np.percentile(observed_cm, args.extreme_percentile))
+    extreme_mask = observed_cm >= extreme_threshold_cm
     predictions = pd.DataFrame(
         {
             "date": dates_val,
@@ -415,6 +433,7 @@ def main() -> None:
             "y_pred_raw": pred_ensemble_raw,
             "y_true_cm": observed_cm,
             "y_pred_cm": pred_ensemble_cm,
+            "is_extreme_top_percentile": extreme_mask,
             # 兼容旧版绘图/查看习惯：observed 和 pred_ensemble 现在明确保存为厘米。
             "observed": observed_cm,
             "pred_ensemble": pred_ensemble_cm,
@@ -426,6 +445,8 @@ def main() -> None:
         predictions[f"pred_seed_{seed}_cm"] = pred_matrix_cm[row_index]
 
     metrics = compute_metrics(observed_cm, pred_ensemble_cm, unit_suffix="_cm")
+    extreme_metrics = compute_metrics(observed_cm[extreme_mask], pred_ensemble_cm[extreme_mask], unit_suffix="_cm")
+    extreme_metrics = {f"extreme_top_{100 - args.extreme_percentile:.0f}pct_{key}": value for key, value in extreme_metrics.items()}
     metrics.update(
         {
             "epochs": args.epochs,
@@ -433,15 +454,21 @@ def main() -> None:
             "lr": args.lr,
             "momentum": args.momentum,
             "weight_decay": args.weight_decay,
+            "patience": args.patience,
+            "min_delta": args.min_delta,
             "seeds": args.seeds,
             "n_train": len(train_dataset),
             "n_val": len(val_dataset),
+            "extreme_percentile": args.extreme_percentile,
+            "extreme_threshold_cm": extreme_threshold_cm,
+            "n_extreme_val": int(extreme_mask.sum()),
             "metric_unit": "cm",
             "surge_unit_scale_to_cm": args.surge_unit_scale_to_cm,
             "y_scaler_mean_raw": y_mean,
             "y_scaler_std_raw": y_std,
         }
     )
+    metrics.update(extreme_metrics)
 
     predictions_path = output_dir / "validation_predictions.csv"
     metrics_path = output_dir / "metrics.json"

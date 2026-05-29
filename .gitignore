@@ -14,6 +14,7 @@ data/
 outputs/
 models/
 figures/
+cache/
 *.grb
 *.grib
 *.idx

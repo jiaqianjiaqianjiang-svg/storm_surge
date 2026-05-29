@@ -12,8 +12,40 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from config import GRID_SIZE, INPUT_CHANNELS
+from config import GRID_SIZE, INPUT_CHANNELS, MODEL_GRID_SIZE, STEPS_PER_SAMPLE, TIME_TILE_COLS, TIME_TILE_ROWS, VARIABLE_ORDER
 from era20c_loader import Era20cReader
+
+
+def tile_time_slices(variable_slices: np.ndarray) -> np.ndarray:
+    """把某个变量的 16 个 40×40 时间片拼成 160×160 大图。
+
+    作者 notebook 的 ``array_reorganization`` 使用 4×4 拼图：前 4 个时间片横向拼成第一行，
+    5-8 拼成第二行，依次类推。这样时间信息进入空间维度，CNN 输入通道数就从 48 变为 3。
+    """
+
+    expected_shape = (STEPS_PER_SAMPLE, GRID_SIZE, GRID_SIZE)
+    if variable_slices.shape != expected_shape:
+        raise ValueError(f"变量时间片 shape 异常: {variable_slices.shape}, 期望 {expected_shape}")
+    rows = []
+    for row in range(TIME_TILE_ROWS):
+        start = row * TIME_TILE_COLS
+        end = start + TIME_TILE_COLS
+        rows.append(np.concatenate(variable_slices[start:end], axis=1))
+    return np.concatenate(rows, axis=0).astype("float32")
+
+
+def reorganize_sample_to_notebook_layout(sample: np.ndarray) -> np.ndarray:
+    """把 ERA 样本从 (48,40,40) 转为作者 notebook 风格的 (3,160,160)。"""
+
+    expected_channels = STEPS_PER_SAMPLE * len(VARIABLE_ORDER)
+    if sample.shape != (expected_channels, GRID_SIZE, GRID_SIZE):
+        raise ValueError(f"原始样本 shape 异常: {sample.shape}")
+    tiled_variables = []
+    for var_i, _ in enumerate(VARIABLE_ORDER):
+        start = var_i * STEPS_PER_SAMPLE
+        end = start + STEPS_PER_SAMPLE
+        tiled_variables.append(tile_time_slices(sample[start:end]))
+    return np.stack(tiled_variables, axis=0).astype("float32")
 
 
 def collect_available_samples(
@@ -166,10 +198,10 @@ def save_train_val_arrays(
         validation_years=validation_years,
     )
 
-    train_shape = (len(train_indices), INPUT_CHANNELS, GRID_SIZE, GRID_SIZE)
-    val_shape = (len(val_indices), INPUT_CHANNELS, GRID_SIZE, GRID_SIZE)
+    train_shape = (len(train_indices), INPUT_CHANNELS, MODEL_GRID_SIZE, MODEL_GRID_SIZE)
+    val_shape = (len(val_indices), INPUT_CHANNELS, MODEL_GRID_SIZE, MODEL_GRID_SIZE)
     print(f"[DATASET] 总样本数: {n_samples:,}")
-    print(f"[DATASET] X 总 shape: ({n_samples}, {INPUT_CHANNELS}, {GRID_SIZE}, {GRID_SIZE})")
+    print(f"[DATASET] X 总 shape: ({n_samples}, {INPUT_CHANNELS}, {MODEL_GRID_SIZE}, {MODEL_GRID_SIZE})")
     print(f"[DATASET] y 总 shape: {y.shape}")
     print(f"[DATASET] 划分方式: {active_split_mode}")
 
@@ -196,7 +228,7 @@ def save_train_val_arrays(
         sample = era_reader.build_predictor_for_day(date)
         if sample is None:
             raise RuntimeError(f"第二次构建训练样本时失败: {date}")
-        x_train[write_i] = sample
+        x_train[write_i] = reorganize_sample_to_notebook_layout(sample)
         if (write_i + 1) % 100 == 0 or write_i + 1 == len(train_indices):
             print(f"[DATASET] 已写入训练样本 {write_i + 1:,}/{len(train_indices):,}")
 
@@ -205,7 +237,7 @@ def save_train_val_arrays(
         sample = era_reader.build_predictor_for_day(date)
         if sample is None:
             raise RuntimeError(f"第二次构建验证样本时失败: {date}")
-        x_val[write_i] = sample
+        x_val[write_i] = reorganize_sample_to_notebook_layout(sample)
         if (write_i + 1) % 100 == 0 or write_i + 1 == len(val_indices):
             print(f"[DATASET] 已写入验证样本 {write_i + 1:,}/{len(val_indices):,}")
 
@@ -235,6 +267,7 @@ def save_train_val_arrays(
                 "n_total": int(n_samples),
                 "n_train": int(len(train_indices)),
                 "n_val": int(len(val_indices)),
+                "x_layout": "notebook-style tiled time slices, shape=(N, 3, 160, 160)",
                 "train_start": str(dates_np[train_indices][0]),
                 "train_end": str(dates_np[train_indices][-1]),
                 "val_start": str(dates_np[val_indices][0]),

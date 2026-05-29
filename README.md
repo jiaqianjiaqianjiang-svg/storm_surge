@@ -74,8 +74,17 @@ python src/preprocess_xiamen.py --start-year 1985 --end-year 1985 --split-mode c
 9. 插值到 `40×40` 网格。
 10. 对 U10、V10、SLP 分别标准化。
 11. 对某一天 `D`，使用 `D-1` 和 `D` 两天共 16 个 3 小时时间片。
-12. 构建 CNN 输入 `X shape = (N, 48, 40, 40)`。
-13. 构建标签 `y shape = (N,)`，并用训练集 mean/std 标准化。
+12. 按作者 notebook 方式，把每个变量的 16 个 `40×40` 时间片拼成 `160×160` 大图。
+13. 构建 CNN 输入 `X shape = (N, 3, 160, 160)`。
+14. 构建标签 `y shape = (N,)`，并用训练集 mean/std 标准化。
+
+第一次从 GRIB 读取 ERA20C 会比较慢。代码会把裁剪插值后的逐年变量缓存到：
+
+```text
+cache/xiamen/era20c_yearly/
+```
+
+以后再次预处理会优先读取缓存，速度会明显快一些。
 
 预处理输出目录：
 
@@ -86,9 +95,9 @@ outputs/xiamen/
 主要文件：
 
 ```text
-X_train.npy             训练集 CNN 输入，shape=(N_train, 48, 40, 40)
+X_train.npy             训练集 CNN 输入，shape=(N_train, 3, 160, 160)
 y_train.npy             标准化后的训练集标签，shape=(N_train,)
-X_val.npy               验证集 CNN 输入，shape=(N_val, 48, 40, 40)
+X_val.npy               验证集 CNN 输入，shape=(N_val, 3, 160, 160)
 y_val.npy               标准化后的验证集标签，shape=(N_val,)
 dates_train.npy         训练集日期
 dates_val.npy           验证集日期
@@ -134,16 +143,16 @@ optimizer: SGD
 模型结构：
 
 ```text
-Input: (48, 40, 40)
-Conv2d(5×5) -> BatchNorm -> ReLU -> MaxPool(2×2)
-Conv2d(5×5) -> BatchNorm -> ReLU -> MaxPool(2×2)
-Conv2d(5×5) -> BatchNorm -> ReLU -> MaxPool(2×2)
-Linear -> ReLU
-Linear -> ReLU
-Linear -> output
+Input: (3, 160, 160)
+Conv2d(3, 6, 5×5) -> BatchNorm -> ReLU -> MaxPool(2×2)
+Conv2d(6, 12, 5×5) -> BatchNorm -> ReLU -> MaxPool(2×2)
+Conv2d(12, 6, 5×5) -> BatchNorm -> ReLU -> MaxPool(2×2)
+Linear(6*20*20, 100) -> ReLU
+Linear(100, 10) -> ReLU
+Linear(10, 1)
 ```
 
-注意：训练时使用标准化后的 `y_train.npy` / `y_val.npy`。评估时脚本会用 `y_scaler.json` 反标准化，再默认乘以 100 转成厘米，与论文的 RMSE/MAE 单位对齐。
+注意：训练时使用标准化后的 `y_train.npy` / `y_val.npy`。评估时脚本会用 `y_scaler.json` 反标准化，再默认乘以 100 转成厘米，与论文的 RMSE/MAE 单位对齐。训练默认启用 early stopping，验证集连续 10 轮没有提升就停止，并加载最佳验证集权重。
 
 ## 3. 训练输出
 
@@ -180,6 +189,9 @@ r2
 rmse_cm
 mae_cm
 rrmse_percent
+extreme_top_5pct_r2
+extreme_top_5pct_rmse_cm
+extreme_top_5pct_mae_cm
 ```
 
 `validation_predictions.csv` 中保存两套数值：
