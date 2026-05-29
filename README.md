@@ -2,11 +2,11 @@
 
 本项目用于复现论文 **A dataset of storm surge reconstructions in the Western North Pacific using CNN** 中厦门站 `Xiamen` 的数据预处理、CNN 训练与验证流程。
 
-仓库只提交代码、配置、README、requirements 和示例 notebook。真实数据、预处理输出、模型权重和图片结果都不提交到 GitHub。
+仓库只提交代码、配置、README、requirements 和示例 notebook。真实 ERA20C/GESLA 数据、预处理输出、模型权重和图片结果都不提交到 GitHub。
 
 ## 数据路径
 
-默认路径集中在 `src/config.py`：
+默认路径集中在 [src/config.py](src/config.py)：
 
 ```python
 ERA20C_DIR = r"F:\ERA20C"
@@ -33,20 +33,32 @@ conda activate jjq
 pip install -r requirements.txt
 ```
 
-训练阶段需要 PyTorch。如果你已经单独安装了 GPU 版 PyTorch，可以不用重复安装。
+训练阶段需要 PyTorch。如果你已经单独安装 GPU 版 PyTorch，可以不用重复安装。
 
 ## 1. 预处理
 
-预处理入口：
+单年快速测试：
 
 ```bash
 python src/preprocess_xiamen.py --start-year 1985 --end-year 1985
 ```
 
-完整年份：
+完整复现数据集：
 
 ```bash
 python src/preprocess_xiamen.py --all-years
+```
+
+划分方式默认是 `--split-mode auto`：
+
+- 当年份足够多时，使用更接近论文验证方式的划分：最早 5 年作为验证集，其余年份作为训练集。
+- 当只跑 1985 这种单年测试时，自动退回时间顺序 80/20，只用于确认流程能跑通。
+
+也可以显式指定：
+
+```bash
+python src/preprocess_xiamen.py --all-years --split-mode first-years --validation-years 5
+python src/preprocess_xiamen.py --start-year 1985 --end-year 1985 --split-mode chronological
 ```
 
 预处理流程：
@@ -63,8 +75,7 @@ python src/preprocess_xiamen.py --all-years
 10. 对 U10、V10、SLP 分别标准化。
 11. 对某一天 `D`，使用 `D-1` 和 `D` 两天共 16 个 3 小时时间片。
 12. 构建 CNN 输入 `X shape = (N, 48, 40, 40)`。
-13. 构建标签 `y shape = (N,)`。
-14. 按时间顺序划分：前 80% 训练集，后 20% 验证集。
+13. 构建标签 `y shape = (N,)`，并用训练集 mean/std 标准化。
 
 预处理输出目录：
 
@@ -75,17 +86,20 @@ outputs/xiamen/
 主要文件：
 
 ```text
-X_train.npy        训练集 CNN 输入，shape=(N_train, 48, 40, 40)
-y_train.npy        标准化后的训练集标签，shape=(N_train,)
-X_val.npy          验证集 CNN 输入，shape=(N_val, 48, 40, 40)
-y_val.npy          标准化后的验证集标签，shape=(N_val,)
-dates_train.npy    训练集日期
-dates_val.npy      验证集日期
-y_original.npy     未标准化的全部标签
-dates_all.npy      全部样本日期
-y_scaler.json      标签标准化 mean/std
-daily_max_surge.csv 每日最大风暴潮
-cleaned_surge.csv  清洗和潮汐分离后的时间序列
+X_train.npy             训练集 CNN 输入，shape=(N_train, 48, 40, 40)
+y_train.npy             标准化后的训练集标签，shape=(N_train,)
+X_val.npy               验证集 CNN 输入，shape=(N_val, 48, 40, 40)
+y_val.npy               标准化后的验证集标签，shape=(N_val,)
+dates_train.npy         训练集日期
+dates_val.npy           验证集日期
+y_original.npy          未标准化的全部标签
+y_train_original.npy    未标准化的训练集标签
+y_val_original.npy      未标准化的验证集标签
+dates_all.npy           全部样本日期
+y_scaler.json           标签标准化 mean/std
+split_metadata.json     训练/验证划分说明
+daily_max_surge.csv     每日最大风暴潮
+cleaned_surge.csv       清洗和潮汐分离后的时间序列
 ```
 
 ## 2. CNN 训练
@@ -110,6 +124,13 @@ seed = 0, 1, 2, 3, 4
 
 并对验证集做 5-model averaging ensemble。
 
+当前模型训练设置：
+
+```text
+loss: MSELoss
+optimizer: SGD
+```
+
 模型结构：
 
 ```text
@@ -122,12 +143,7 @@ Linear -> ReLU
 Linear -> output
 ```
 
-训练设置：
-
-```text
-loss: MSELoss
-optimizer: SGD
-```
+注意：训练时使用标准化后的 `y_train.npy` / `y_val.npy`。评估时脚本会用 `y_scaler.json` 反标准化，再默认乘以 100 转成厘米，与论文的 RMSE/MAE 单位对齐。
 
 ## 3. 训练输出
 
@@ -156,29 +172,34 @@ figures/xiamen/pred_vs_obs.png
 figures/xiamen/scatter.png
 ```
 
-指标包括：
+`metrics.json` 中主要指标包括：
 
 ```text
-Pearson correlation r
-RMSE
-MAE
-RRMSE
+pearson_r
+r2
+rmse_cm
+mae_cm
+rrmse_percent
 ```
 
-`validation_predictions.csv` 中包含：
+`validation_predictions.csv` 中保存两套数值：
 
 ```text
-date
-observed
-pred_ensemble
-pred_seed_0
-pred_seed_1
-pred_seed_2
-pred_seed_3
-pred_seed_4
+y_true_scaled    标准化后的验证标签
+y_pred_scaled    标准化后的 ensemble 预测
+y_true_raw       反标准化后的原始单位标签
+y_pred_raw       反标准化后的原始单位预测
+y_true_cm        厘米单位标签
+y_pred_cm        厘米单位预测
 ```
 
-其中 `observed` 和预测值都已经从标准化值反变换回原始 storm surge 单位。
+每个 seed 的预测也会保存为：
+
+```text
+pred_seed_0_scaled / pred_seed_0_raw / pred_seed_0_cm
+...
+pred_seed_4_scaled / pred_seed_4_raw / pred_seed_4_cm
+```
 
 ## 4. 查看结果
 
@@ -186,6 +207,7 @@ pred_seed_4
 
 ```text
 outputs/xiamen/metrics.json
+outputs/xiamen/validation_predictions.csv
 figures/xiamen/pred_vs_obs.png
 figures/xiamen/scatter.png
 figures/xiamen/loss_curve.png

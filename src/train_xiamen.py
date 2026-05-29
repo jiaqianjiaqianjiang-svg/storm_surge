@@ -92,6 +92,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-workers", type=int, default=0, help="Windows 上建议先用 0")
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2, 3, 4], help="5-model ensemble 随机种子")
     parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto", help="训练设备")
+    parser.add_argument(
+        "--surge-unit-scale-to-cm",
+        type=float,
+        default=100.0,
+        help=(
+            "把预处理输出的原始 storm surge 单位转换为厘米的倍率。"
+            "GESLA 常见单位为米，因此默认 100。最终论文对比指标使用厘米计算。"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -387,16 +396,36 @@ def main() -> None:
     pred_ensemble_standardized = pred_matrix_standardized.mean(axis=0)
 
     y_val_standardized = np.load(output_dir / "y_val.npy")
-    observed = inverse_transform_y(y_val_standardized, y_mean, y_std)
-    pred_matrix = inverse_transform_y(pred_matrix_standardized, y_mean, y_std)
-    pred_ensemble = inverse_transform_y(pred_ensemble_standardized, y_mean, y_std)
+    # y_val.npy 和模型输出都是标准化后的数值；必须先用训练集 mean/std 反标准化。
+    # 论文报告 RMSE/MAE 的单位是厘米，因此再乘以 --surge-unit-scale-to-cm。
+    observed_raw = inverse_transform_y(y_val_standardized, y_mean, y_std)
+    pred_matrix_raw = inverse_transform_y(pred_matrix_standardized, y_mean, y_std)
+    pred_ensemble_raw = inverse_transform_y(pred_ensemble_standardized, y_mean, y_std)
+    observed_cm = observed_raw * args.surge_unit_scale_to_cm
+    pred_matrix_cm = pred_matrix_raw * args.surge_unit_scale_to_cm
+    pred_ensemble_cm = pred_ensemble_raw * args.surge_unit_scale_to_cm
 
     dates_val = np.load(output_dir / "dates_val.npy").astype("datetime64[D]").astype(str)
-    predictions = pd.DataFrame({"date": dates_val, "observed": observed, "pred_ensemble": pred_ensemble})
+    predictions = pd.DataFrame(
+        {
+            "date": dates_val,
+            "y_true_scaled": y_val_standardized,
+            "y_pred_scaled": pred_ensemble_standardized,
+            "y_true_raw": observed_raw,
+            "y_pred_raw": pred_ensemble_raw,
+            "y_true_cm": observed_cm,
+            "y_pred_cm": pred_ensemble_cm,
+            # 兼容旧版绘图/查看习惯：observed 和 pred_ensemble 现在明确保存为厘米。
+            "observed": observed_cm,
+            "pred_ensemble": pred_ensemble_cm,
+        }
+    )
     for row_index, seed in enumerate(args.seeds):
-        predictions[f"pred_seed_{seed}"] = pred_matrix[row_index]
+        predictions[f"pred_seed_{seed}_scaled"] = pred_matrix_standardized[row_index]
+        predictions[f"pred_seed_{seed}_raw"] = pred_matrix_raw[row_index]
+        predictions[f"pred_seed_{seed}_cm"] = pred_matrix_cm[row_index]
 
-    metrics = compute_metrics(observed, pred_ensemble)
+    metrics = compute_metrics(observed_cm, pred_ensemble_cm, unit_suffix="_cm")
     metrics.update(
         {
             "epochs": args.epochs,
@@ -407,6 +436,10 @@ def main() -> None:
             "seeds": args.seeds,
             "n_train": len(train_dataset),
             "n_val": len(val_dataset),
+            "metric_unit": "cm",
+            "surge_unit_scale_to_cm": args.surge_unit_scale_to_cm,
+            "y_scaler_mean_raw": y_mean,
+            "y_scaler_std_raw": y_std,
         }
     )
 

@@ -46,6 +46,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--start-year", type=int, help="开始年份，例如 1985")
     parser.add_argument("--end-year", type=int, help="结束年份，例如 1985")
     parser.add_argument(
+        "--split-mode",
+        choices=["auto", "first-years", "chronological"],
+        default="auto",
+        help=(
+            "训练/验证划分方式。auto 会在多年数据上使用论文式前 5 年验证，"
+            "单年测试时自动退回 80/20；first-years 强制前若干年验证；"
+            "chronological 强制按时间顺序 80/20。"
+        ),
+    )
+    parser.add_argument("--validation-years", type=int, default=5, help="论文式划分中用于验证集的最早年份数量")
+    parser.add_argument("--train-ratio", type=float, default=0.8, help="chronological 划分时训练集比例")
+    parser.add_argument(
         "--skip-missing-era",
         action="store_true",
         help="如果某一年 ERA 文件缺失，则跳过该年；默认缺失即报错。",
@@ -101,7 +113,15 @@ def main() -> None:
 
     # 5. 构建 CNN 样本并按时间顺序划分。
     sample_dates, y = collect_available_samples(daily, era_reader)
-    save_train_val_arrays(sample_dates, y, era_reader, XIAMEN_OUTPUT_DIR)
+    save_train_val_arrays(
+        sample_dates,
+        y,
+        era_reader,
+        XIAMEN_OUTPUT_DIR,
+        train_ratio=args.train_ratio,
+        split_mode=args.split_mode,
+        validation_years=args.validation_years,
+    )
 
     print("=" * 80)
     print("[DONE] 厦门站预处理完成。")
