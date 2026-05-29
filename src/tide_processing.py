@@ -10,6 +10,30 @@ from config import SITE_LAT, SURGE_MAD_THRESHOLD
 from gesla_loader import _robust_mad_filter
 
 
+TIDAL_CONSTITUENTS = (
+    "M2",
+    "S2",
+    "N2",
+    "K2",
+    "K1",
+    "O1",
+    "P1",
+    "Q1",
+    "M4",
+    "MS4",
+    "MN4",
+    "2N2",
+    "MU2",
+    "NU2",
+    "L2",
+    "T2",
+    "J1",
+    "OO1",
+    "M6",
+    "M8",
+)
+
+
 def separate_tide_with_utide(df: pd.DataFrame, lat: float = SITE_LAT) -> pd.DataFrame:
     """使用 UTide 从观测潮位中分离预测潮汐和风暴潮。
 
@@ -29,6 +53,7 @@ def separate_tide_with_utide(df: pd.DataFrame, lat: float = SITE_LAT) -> pd.Data
     # date number。绝对日期数值很大时，重建潮汐可能退化成近似常数，导致 storm surge 标签错误。
     time_num = (work.index - work.index[0]).total_seconds() / 86400.0
     time_num = np.asarray(time_num, dtype=float)
+    epoch = work.index[0].to_pydatetime()
     observed = work["sea_level"].to_numpy(dtype=float)
 
     # trend=False：此处按用户要求直接计算 predicted tide，然后用 observed - predicted tide。
@@ -37,6 +62,8 @@ def separate_tide_with_utide(df: pd.DataFrame, lat: float = SITE_LAT) -> pd.Data
         observed,
         lat=lat,
         method="ols",
+        epoch=epoch,
+        constit=TIDAL_CONSTITUENTS,
         # 预处理只需要调和常数和重建潮汐，不需要置信区间。
         # 关闭置信区间可避免 UTide 在规则小时数据上额外计算 periodogram 时
         # 产生无关的 divide-by-zero warning。
@@ -44,7 +71,18 @@ def separate_tide_with_utide(df: pd.DataFrame, lat: float = SITE_LAT) -> pd.Data
         trend=False,
         verbose=False,
     )
-    tide = reconstruct(time_num, coef, verbose=False).h
+    print(f"[TIDE] UTide 解出的分潮数量: {len(coef.name)}")
+    print(f"[TIDE] UTide 分潮: {', '.join(str(name) for name in coef.name)}")
+    if hasattr(coef, "A"):
+        amp_preview = sorted(
+            zip([str(name) for name in coef.name], np.asarray(coef.A, dtype=float)),
+            key=lambda item: item[1],
+            reverse=True,
+        )[:8]
+        print("[TIDE] UTide 主要分潮振幅: " + ", ".join(f"{name}={amp:.6f}" for name, amp in amp_preview))
+
+    # 显式传入 constit=coef.name，避免 reconstruct 默认按 SNR/PE 过滤后只剩均值项。
+    tide = reconstruct(time_num, coef, epoch=epoch, constit=coef.name, verbose=False).h
 
     out = pd.DataFrame(
         {
