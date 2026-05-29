@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from matplotlib.dates import date2num
 from utide import reconstruct, solve
 
 from config import SITE_LAT, SURGE_MAD_THRESHOLD
@@ -26,7 +25,10 @@ def separate_tide_with_utide(df: pd.DataFrame, lat: float = SITE_LAT) -> pd.Data
         raise ValueError("可用于 UTide 调和分析的记录太少，建议至少包含 1 个月以上数据")
 
     print("[TIDE] 开始 UTide 调和分析，这一步在完整年份上可能需要一些时间...")
-    time_num = date2num(work.index.to_pydatetime())
+    # UTide 的时间单位是“天”。这里使用相对第一个观测时刻的天数，而不是 Matplotlib
+    # date number。绝对日期数值很大时，重建潮汐可能退化成近似常数，导致 storm surge 标签错误。
+    time_num = (work.index - work.index[0]).total_seconds() / 86400.0
+    time_num = np.asarray(time_num, dtype=float)
     observed = work["sea_level"].to_numpy(dtype=float)
 
     # trend=False：此处按用户要求直接计算 predicted tide，然后用 observed - predicted tide。
@@ -52,6 +54,11 @@ def separate_tide_with_utide(df: pd.DataFrame, lat: float = SITE_LAT) -> pd.Data
         },
         index=work.index,
     )
+
+    print("[TIDE] predicted_tide describe:")
+    print(out["predicted_tide"].describe())
+    print("[TIDE] storm_surge describe:")
+    print(out["storm_surge"].describe())
 
     before = len(out)
     out = out.loc[_robust_mad_filter(out["storm_surge"], SURGE_MAD_THRESHOLD)].copy()
