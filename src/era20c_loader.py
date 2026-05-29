@@ -264,7 +264,9 @@ class Era20cReader:
         if cache_path.exists():
             print(f"[ERA] 读取缓存 {year} {variable}: {cache_path}")
             try:
-                da = xr.open_dataarray(cache_path, decode_cf=False).load().astype("float32")
+                # 新版缓存已经去掉了 cfgrib 的 step/valid_time 辅助坐标，可以正常 CF 解码。
+                # 不能使用 decode_cf=False，否则 time 会保持为 netCDF 内部数字，后续日期匹配会全部失败。
+                da = xr.open_dataarray(cache_path).load().astype("float32")
                 da = sanitize_for_cache(da, variable)
                 self._put_cache(cache_key, da)
                 return da
