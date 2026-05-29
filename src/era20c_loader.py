@@ -87,6 +87,29 @@ def cache_path_for_year(variable: str, year: int) -> Path:
     return ERA20C_CACHE_DIR / f"xiamen_{variable}_{year}_{GRID_SIZE}x{GRID_SIZE}.nc"
 
 
+def sanitize_for_cache(da: xr.DataArray, variable: str) -> xr.DataArray:
+    """清理 cfgrib 辅助坐标和属性，避免缓存 nc 再读取时解码冲突。
+
+    cfgrib 读出的 DataArray 常带有 step、valid_time 等辅助坐标，其中 step 的 attrs
+    可能包含 dtype。写成 netCDF 后再由 xarray 解码，会触发 dtype attrs 冲突。缓存只需要
+    time/lat/lon 和变量值，因此这里重建一个干净的 DataArray。
+    """
+
+    clean = xr.DataArray(
+        _to_numpy(da, dtype="float32"),
+        dims=("time", "lat", "lon"),
+        coords={
+            "time": _as_datetime_index(da["time"]),
+            "lat": _to_numpy(da["lat"], dtype="float32"),
+            "lon": _to_numpy(da["lon"], dtype="float32"),
+        },
+        name=variable,
+    )
+    clean.attrs = {}
+    clean.encoding = {}
+    return clean
+
+
 def open_era20c_grib(path: Path, variable: str) -> xr.DataArray:
     """读取单个 ERA-20C GRIB 文件并返回目标变量 DataArray。"""
 
@@ -240,9 +263,14 @@ class Era20cReader:
         cache_path = cache_path_for_year(variable, year)
         if cache_path.exists():
             print(f"[ERA] 读取缓存 {year} {variable}: {cache_path}")
-            da = xr.open_dataarray(cache_path).load().astype("float32")
-            self._put_cache(cache_key, da)
-            return da
+            try:
+                da = xr.open_dataarray(cache_path, decode_cf=False).load().astype("float32")
+                da = sanitize_for_cache(da, variable)
+                self._put_cache(cache_key, da)
+                return da
+            except Exception as exc:
+                print(f"[ERA] 缓存读取失败，将删除并重建: {cache_path} ({exc})")
+                cache_path.unlink(missing_ok=True)
 
         path = find_year_file(variable, year)
         if path is None:
@@ -251,9 +279,8 @@ class Era20cReader:
         print(f"[ERA] 读取 {year} {variable}: {path}")
         da = open_era20c_grib(path, variable)
         da = subset_and_interp_station_region(da)
-        da = da.astype("float32")
+        da = sanitize_for_cache(da.astype("float32"), variable)
         print(f"[ERA] {year} {variable} 插值后 shape: {tuple(da.shape)}")
-        da.name = variable
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         da.to_netcdf(cache_path)
         print(f"[ERA] 写入缓存 {year} {variable}: {cache_path}")
