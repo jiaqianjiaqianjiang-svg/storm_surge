@@ -55,6 +55,17 @@ def _to_numpy(da: xr.DataArray, dtype: str | np.dtype | None = None) -> np.ndarr
     return arr
 
 
+def _as_datetime_index(values: xr.DataArray | np.ndarray) -> pd.DatetimeIndex:
+    """把 xarray 时间坐标统一转换成 pandas.DatetimeIndex。
+
+    cfgrib 读出的时间坐标有时是 numpy datetime64，有时带有 valid_time 坐标。
+    后续构建样本时统一使用 pandas 时间，能避免精确 reindex 因类型差异全匹配失败。
+    """
+
+    raw_values = _to_numpy(values) if isinstance(values, xr.DataArray) else values
+    return pd.DatetimeIndex(pd.to_datetime(raw_values))
+
+
 def find_year_file(variable: str, year: int) -> Path | None:
     """在变量目录中自动寻找某一年的 GRIB 文件。"""
 
@@ -107,6 +118,15 @@ def open_era20c_grib(path: Path, variable: str) -> xr.DataArray:
         da = da.rename(rename_map)
     if "time" not in da.dims:
         raise ValueError(f"ERA 变量 {variable} 中没有 time 维度，实际维度: {da.dims}")
+
+    # 如果文件中存在 valid_time，并且它沿 time 维度变化，则它通常是更明确的
+    # 有效时间坐标。优先用 valid_time 覆盖 time，避免后续窗口筛选失败。
+    if "valid_time" in da.coords and "time" in da["valid_time"].dims:
+        da = da.assign_coords(time=_as_datetime_index(da["valid_time"]))
+    else:
+        da = da.assign_coords(time=_as_datetime_index(da["time"]))
+
+    print(f"[ERA] 时间范围: {pd.Timestamp(da.time.values[0])} -> {pd.Timestamp(da.time.values[-1])}")
     return da
 
 
@@ -266,7 +286,7 @@ class Era20cReader:
 
         date = pd.Timestamp(date).normalize()
         start = date - pd.Timedelta(days=1)
-        expected_times = pd.date_range(start, periods=16, freq="3h")
+        end = date + pd.Timedelta(hours=21)
 
         channels: list[np.ndarray] = []
         for variable in VARIABLE_ORDER:
@@ -274,9 +294,13 @@ class Era20cReader:
             for year in sorted({start.year, date.year}):
                 pieces.append(self.get_normalized_year(variable, year))
             da = xr.concat(pieces, dim="time").sortby("time")
-            # 使用 reindex 而不是 sel。sel 在缺少某个 3 小时时间片时会直接抛
-            # KeyError；reindex 会保留目标时间轴并填 NaN，便于后面统一判断。
-            selected = da.reindex(time=expected_times)
+            _, unique_index = np.unique(_as_datetime_index(da["time"]), return_index=True)
+            if len(unique_index) != da.sizes["time"]:
+                da = da.isel(time=np.sort(unique_index)).sortby("time")
+
+            # 对某一天 D，使用 D-1 00:00 到 D 21:00，共 16 个 3 小时时间片。
+            # 这里用时间窗口筛选，比精确 reindex 更兼容不同 xarray/cfgrib 时间类型。
+            selected = da.sel(time=slice(start, end))
             if selected.sizes.get("time", 0) != 16:
                 return None
             selected_arr = _to_numpy(selected, dtype="float32")
