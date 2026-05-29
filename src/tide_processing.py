@@ -57,6 +57,12 @@ def separate_tide_with_utide(df: pd.DataFrame, lat: float = SITE_LAT) -> pd.Data
     out = out.loc[_robust_mad_filter(out["storm_surge"], SURGE_MAD_THRESHOLD)].copy()
     print(f"[TIDE] 宽松 MAD 删除 storm surge 异常值: {before - len(out):,}")
     print(f"[TIDE] storm surge 记录数: {len(out):,}")
+    print(
+        "[TIDE] storm_surge 范围: "
+        f"min={out['storm_surge'].min():.6f}, "
+        f"max={out['storm_surge'].max():.6f}, "
+        f"mean={out['storm_surge'].mean():.6f}"
+    )
     return out
 
 
@@ -71,4 +77,10 @@ def daily_maximum_surge(surge_df: pd.DataFrame) -> pd.DataFrame:
     out.index.name = "date"
     print(f"[TIDE] daily maximum storm surge 天数: {len(out):,}")
     print(f"[TIDE] daily 标签范围: {out.index.min().date()} -> {out.index.max().date()}")
+    print(
+        "[TIDE] daily_max_surge 范围: "
+        f"min={out['daily_max_surge'].min():.6f}, "
+        f"max={out['daily_max_surge'].max():.6f}, "
+        f"mean={out['daily_max_surge'].mean():.6f}"
+    )
     return out

@@ -57,11 +57,13 @@ def mae(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 def rrmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """计算 relative RMSE。
 
-    这里采用常见相对误差写法：RMSE / mean(abs(y_true)) × 100%。
-    若分母为 0，则返回 NaN。
+    为了更接近论文中的 surge variability 写法，这里用验证集观测值的变化幅度作为分母：
+    RMSE / (max(y_true) - min(y_true)) × 100%。
+    若变化幅度为 0，则返回 NaN。
     """
 
-    denominator = float(np.mean(np.abs(y_true)))
+    y_true = np.asarray(y_true, dtype=float)
+    denominator = float(np.max(y_true) - np.min(y_true))
     if denominator == 0:
         return float("nan")
     return rmse(y_true, y_pred) / denominator * 100.0
