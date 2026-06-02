@@ -4,6 +4,7 @@
 在实验室远程电脑运行时，通常只需要检查这里的路径是否正确。
 """
 
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -30,6 +31,125 @@ SITE_LON = 118.067
 # GESLA 厦门站大致可用年份。--all-years 会使用这个范围。
 XIAMEN_START_YEAR = 1954
 XIAMEN_END_YEAR = 1997
+
+
+@dataclass(frozen=True)
+class SiteConfig:
+    """单个验潮站的运行配置。"""
+
+    key: str
+    name: str
+    lat: float
+    lon: float
+    start_year: int
+    end_year: int
+    filename: str | None = None
+    search_terms: tuple[str, ...] = ()
+
+    @property
+    def file_path(self) -> Path:
+        """返回 GESLA 文件路径。"""
+
+        if self.filename:
+            return GESLA_DIR / self.filename
+        return resolve_gesla_site_file(self)
+
+    @property
+    def output_dir(self) -> Path:
+        """返回该站点输出目录。"""
+
+        return OUTPUT_ROOT / self.key
+
+    @property
+    def cache_dir(self) -> Path:
+        """返回该站点 ERA 缓存目录。"""
+
+        return CACHE_ROOT / self.key / "era20c_yearly"
+
+
+SITES: dict[str, SiteConfig] = {
+    "xiamen": SiteConfig(
+        key="xiamen",
+        name="Xiamen",
+        lat=24.45,
+        lon=118.067,
+        start_year=1954,
+        end_year=1997,
+        filename="xiamen-376a-chn-uhslc",
+        search_terms=("xiamen",),
+    ),
+    "kushiro": SiteConfig(
+        key="kushiro",
+        name="Kushiro",
+        lat=42.98,
+        lon=144.37,
+        start_year=1900,
+        end_year=2010,
+        search_terms=("kushiro",),
+    ),
+    "kashiwazaki": SiteConfig(
+        key="kashiwazaki",
+        name="Kashiwazaki",
+        lat=37.36,
+        lon=138.55,
+        start_year=1900,
+        end_year=2010,
+        search_terms=("kashiwazaki",),
+    ),
+    "lusi": SiteConfig(
+        key="lusi",
+        name="Lusi",
+        lat=32.06,
+        lon=121.60,
+        start_year=1900,
+        end_year=2010,
+        search_terms=("lusi", "lvsi", "lyusi"),
+    ),
+    "geting": SiteConfig(
+        key="geting",
+        name="Geting",
+        lat=5.53,
+        lon=102.11,
+        start_year=1900,
+        end_year=2010,
+        search_terms=("geting",),
+    ),
+    "legaspi": SiteConfig(
+        key="legaspi",
+        name="Legaspi",
+        lat=13.15,
+        lon=123.75,
+        start_year=1900,
+        end_year=2010,
+        search_terms=("legaspi", "legazpi"),
+    ),
+}
+
+
+def get_site_config(site_key: str) -> SiteConfig:
+    """按命令行站点名返回配置。"""
+
+    key = site_key.lower()
+    if key not in SITES:
+        raise KeyError(f"未知站点 {site_key}，可选: {', '.join(sorted(SITES))}")
+    return SITES[key]
+
+
+def resolve_gesla_site_file(site: SiteConfig) -> Path:
+    """在 GESLA_DIR 中按关键词自动寻找站点文件。"""
+
+    candidates: list[Path] = []
+    for term in site.search_terms or (site.key,):
+        candidates.extend(sorted(GESLA_DIR.glob(f"*{term}*")))
+    candidates = [path for path in candidates if path.is_file()]
+    if not candidates:
+        raise FileNotFoundError(
+            f"找不到 {site.name} 的 GESLA 文件。请在 src/config.py 的 SITES['{site.key}'] "
+            f"中填写 filename。搜索目录: {GESLA_DIR}; 搜索词: {site.search_terms}"
+        )
+    if len(candidates) > 1:
+        print(f"[CONFIG] {site.name} 匹配到多个 GESLA 文件，使用第一个: {candidates[0]}")
+    return candidates[0]
 
 
 # =========================

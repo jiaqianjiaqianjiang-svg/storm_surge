@@ -1,22 +1,30 @@
-# Storm Surge Xiamen CNN
+# Storm Surge CNN Reconstruction
 
-本项目用于复现论文 **A dataset of storm surge reconstructions in the Western North Pacific using CNN** 中厦门站 `Xiamen` 的数据预处理、CNN 训练与验证流程。
+本项目用于复现论文 **A dataset of storm surge reconstructions in the Western North Pacific using CNN** 的风暴潮数据预处理与 CNN 重建流程。
 
-仓库只提交代码、配置、README、requirements 和示例 notebook。真实 ERA20C/GESLA 数据、预处理输出、模型权重和图片结果都不提交到 GitHub。
+当前代码支持论文技术验证中举例分析的 6 个站点：
 
-## 数据路径
-
-默认路径集中在 [src/config.py](src/config.py)：
-
-```python
-ERA20C_DIR = r"F:\ERA20C"
-GESLA_DIR = r"F:\GESLA\GESLA3"
-SITE_FILE = r"F:\GESLA\GESLA3\xiamen-376a-chn-uhslc"
-SITE_LAT = 24.45
-SITE_LON = 118.067
+```text
+Kushiro
+Kashiwazaki
+Lusi
+Xiamen
+Geting
+Legaspi
 ```
 
-ERA-20C 目录结构需要是：
+仓库只提交代码、配置、README、requirements 和示例 notebook。真实 ERA20C/GESLA 数据、预处理输出、模型权重、图片结果都不提交到 GitHub。
+
+## 1. 数据路径
+
+真实路径集中在 [src/config.py](src/config.py)：
+
+```python
+ERA20C_DIR = Path(r"F:\ERA20C")
+GESLA_DIR = Path(r"F:\GESLA\GESLA3")
+```
+
+ERA20C 目录结构需要是：
 
 ```text
 F:\ERA20C\10U\*.grb
@@ -24,219 +32,196 @@ F:\ERA20C\10V\*.grb
 F:\ERA20C\SLP\*.grb
 ```
 
-## 环境
+站点配置在 `SITES` 中。厦门站已经固定文件名：
+
+```python
+filename="xiamen-376a-chn-uhslc"
+```
+
+其他站点会按站名关键词在 `F:\GESLA\GESLA3` 自动查找文件。如果某个站点提示找不到文件，请先在远程电脑运行：
+
+```powershell
+Get-ChildItem F:\GESLA\GESLA3 | Where-Object { $_.Name -match "kushiro|kashiwazaki|lusi|lvsi|lyusi|geting|legaspi|legazpi" } | Select-Object Name
+```
+
+然后把真实文件名填到 [src/config.py](src/config.py) 对应站点的 `filename`。
+
+## 2. 环境
 
 建议在实验室远程电脑的 conda 环境 `jjq` 中运行：
 
-```bash
+```powershell
 conda activate jjq
 pip install -r requirements.txt
 ```
 
-训练阶段需要 PyTorch。如果你已经单独安装 GPU 版 PyTorch，可以不用重复安装。
+训练阶段需要 PyTorch。如果已经安装 GPU 版 PyTorch，不需要重复安装。
 
-## 1. 预处理
+## 3. 预处理
+
+脚本入口仍然是：
+
+```powershell
+python src/preprocess_xiamen.py
+```
+
+虽然文件名保留了 `xiamen`，现在已经支持 `--site` 参数。
 
 单年快速测试：
 
-```bash
-python src/preprocess_xiamen.py --start-year 1985 --end-year 1985
+```powershell
+python src/preprocess_xiamen.py --site xiamen --start-year 1985 --end-year 1985
+python src/preprocess_xiamen.py --site lusi --start-year 1985 --end-year 1985
 ```
 
-完整复现数据集：
+完整年份处理：
 
-```bash
-python src/preprocess_xiamen.py --all-years
+```powershell
+python src/preprocess_xiamen.py --site xiamen --all-years --split-mode first-years --validation-years 5
+python src/preprocess_xiamen.py --site lusi --all-years --split-mode first-years --validation-years 5
 ```
 
-划分方式默认是 `--split-mode auto`：
+可选站点：
 
-- 当年份足够多时，使用更接近论文验证方式的划分：最早 5 年作为验证集，其余年份作为训练集。
-- 当只跑 1985 这种单年测试时，自动退回时间顺序 80/20，只用于确认流程能跑通。
-
-也可以显式指定：
-
-```bash
-python src/preprocess_xiamen.py --all-years --split-mode first-years --validation-years 5
-python src/preprocess_xiamen.py --start-year 1985 --end-year 1985 --split-mode chronological
+```text
+xiamen
+kushiro
+kashiwazaki
+lusi
+geting
+legaspi
 ```
 
 预处理流程：
 
-1. 读取厦门站 GESLA 文件，自动跳过 `#` 元数据并识别数据行。
-2. 清洗潮位数据，删除重复时间、缺测标记和明显坏值。
-3. 使用 UTide 做潮汐分离。
-4. 计算 `storm surge = observed sea level - predicted tide`。
-5. 按天取 `daily maximum storm surge` 作为标签 `y`。
-6. 读取 ERA-20C 的 U10、V10、SLP。
-7. 自动识别 GRIB 文件中的变量名。
-8. 提取厦门站周围 `10°×10°` 区域。
-9. 插值到 `40×40` 网格。
-10. 对 U10、V10、SLP 分别标准化。
-11. 对某一天 `D`，使用 `D-1` 和 `D` 两天共 16 个 3 小时时间片。
-12. 按作者 notebook 方式，把每个变量的 16 个 `40×40` 时间片拼成 `160×160` 大图。
-13. 构建 CNN 输入 `X shape = (N, 3, 160, 160)`。
-14. 构建标签 `y shape = (N,)`，并用训练集 mean/std 标准化。
+1. 读取 GESLA 潮位文件，自动跳过元数据。
+2. 清洗重复时间、缺测值、use_flag 坏值和明显异常值。
+3. 使用 UTide 做调和分析。
+4. 计算 `storm_surge = observed_sea_level - predicted_tide`。
+5. 按天取 `daily maximum storm surge` 作为标签。
+6. 读取 ERA20C 的 U10、V10、SLP。
+7. 自动识别 GRIB 变量名。
+8. 裁剪站点周围 `10° x 10°` 区域。
+9. 插值到 `40 x 40` 网格。
+10. 按变量分别标准化。
+11. 对某一天 D，使用 D-1 和 D 两天共 16 个 3 小时时间片。
+12. 按作者 notebook 风格把 16 个 `40 x 40` 时间片拼成 `160 x 160`。
+13. 生成 CNN 输入 `X shape = (N, 3, 160, 160)`。
+14. 生成标准化标签 `y shape = (N,)`。
 
-第一次从 GRIB 读取 ERA20C 会比较慢。代码会把裁剪插值后的逐年变量缓存到：
+第一次从 GRIB 读取 ERA20C 会比较慢。代码会把每个站点、每个变量、每一年的裁剪插值结果缓存到：
 
 ```text
-cache/xiamen/era20c_yearly/
+cache/<site>/era20c_yearly/
 ```
 
-以后再次预处理会优先读取缓存，速度会明显快一些。
+再次运行同一站点时会优先读缓存，速度会快很多。
 
-预处理输出目录：
+## 4. 预处理输出
+
+每个站点单独输出，例如：
 
 ```text
 outputs/xiamen/
+outputs/lusi/
+outputs/kushiro/
 ```
 
 主要文件：
 
 ```text
-X_train.npy             训练集 CNN 输入，shape=(N_train, 3, 160, 160)
-y_train.npy             标准化后的训练集标签，shape=(N_train,)
-X_val.npy               验证集 CNN 输入，shape=(N_val, 3, 160, 160)
-y_val.npy               标准化后的验证集标签，shape=(N_val,)
+X_train.npy             训练集输入，shape=(N_train, 3, 160, 160)
+y_train.npy             标准化后的训练集标签
+X_val.npy               验证集输入，shape=(N_val, 3, 160, 160)
+y_val.npy               标准化后的验证集标签
 dates_train.npy         训练集日期
 dates_val.npy           验证集日期
 y_original.npy          未标准化的全部标签
 y_train_original.npy    未标准化的训练集标签
 y_val_original.npy      未标准化的验证集标签
 dates_all.npy           全部样本日期
-y_scaler.json           标签标准化 mean/std
-split_metadata.json     训练/验证划分说明
+y_scaler.json           标签标准化参数
+split_metadata.json     数据划分说明
 daily_max_surge.csv     每日最大风暴潮
 cleaned_surge.csv       清洗和潮汐分离后的时间序列
 ```
 
-## 2. CNN 训练
+## 5. CNN 训练
 
 快速测试：
 
-```bash
-python src/train_xiamen.py --epochs 2 --batch-size 16
+```powershell
+python src/train_xiamen.py --site xiamen --epochs 2 --batch-size 16 --seeds 0
 ```
 
-正式训练示例：
+正式训练：
 
-```bash
-python src/train_xiamen.py --epochs 100 --batch-size 32 --lr 0.001
+```powershell
+python src/train_xiamen.py --site xiamen --epochs 100 --batch-size 32 --lr 0.001 --patience 10
 ```
 
-训练脚本会训练 5 个不同随机种子的模型：
+其他站点只需要改 `--site`：
 
-```text
-seed = 0, 1, 2, 3, 4
+```powershell
+python src/train_xiamen.py --site lusi --epochs 100 --batch-size 32 --lr 0.001 --patience 10
 ```
 
-并对验证集做 5-model averaging ensemble。
-
-当前模型训练设置：
+训练设置：
 
 ```text
 loss: MSELoss
 optimizer: SGD
+ensemble: 5 个 seed 训练后平均
+early stopping: 默认开启
 ```
 
-模型结构：
+模型结构贴近作者 notebook：
 
 ```text
 Input: (3, 160, 160)
-Conv2d(3, 6, 5×5) -> BatchNorm -> ReLU -> MaxPool(2×2)
-Conv2d(6, 12, 5×5) -> BatchNorm -> ReLU -> MaxPool(2×2)
-Conv2d(12, 6, 5×5) -> BatchNorm -> ReLU -> MaxPool(2×2)
-Linear(6*20*20, 100) -> ReLU
-Linear(100, 10) -> ReLU
-Linear(10, 1)
+Conv2d(3, 6, 5x5) -> BatchNorm -> ReLU -> MaxPool(2x2)
+Conv2d(6, 12, 5x5) -> BatchNorm -> ReLU -> MaxPool(2x2)
+Conv2d(12, 6, 5x5) -> BatchNorm -> ReLU -> MaxPool(2x2)
+FC -> FC -> FC -> Storm Surge
 ```
 
-注意：训练时使用标准化后的 `y_train.npy` / `y_val.npy`。评估时脚本会用 `y_scaler.json` 反标准化，再默认乘以 100 转成厘米，与论文的 RMSE/MAE 单位对齐。训练默认启用 early stopping，验证集连续 10 轮没有提升就停止，并加载最佳验证集权重。
-
-## 3. 训练输出
-
-模型保存到：
+评估时会用 `y_scaler.json` 反标准化，并转换为厘米计算：
 
 ```text
-models/xiamen/model_seed_0.pth
-models/xiamen/model_seed_1.pth
-models/xiamen/model_seed_2.pth
-models/xiamen/model_seed_3.pth
-models/xiamen/model_seed_4.pth
+Pearson r
+R2
+RMSE cm
+MAE cm
+RRMSE percent
+Top 5% extreme metrics
 ```
 
-验证结果保存到：
+## 6. 训练输出
+
+每个站点单独保存：
 
 ```text
-outputs/xiamen/validation_predictions.csv
-outputs/xiamen/metrics.json
+models/<site>/model_seed_0.pth
+models/<site>/model_seed_1.pth
+models/<site>/model_seed_2.pth
+models/<site>/model_seed_3.pth
+models/<site>/model_seed_4.pth
+
+outputs/<site>/validation_predictions.csv
+outputs/<site>/metrics.json
+
+figures/<site>/loss_curve.png
+figures/<site>/pred_vs_obs.png
+figures/<site>/scatter.png
 ```
 
-图片保存到：
-
-```text
-figures/xiamen/loss_curve.png
-figures/xiamen/pred_vs_obs.png
-figures/xiamen/scatter.png
-```
-
-`metrics.json` 中主要指标包括：
-
-```text
-pearson_r
-r2
-rmse_cm
-mae_cm
-rrmse_percent
-extreme_top_5pct_r2
-extreme_top_5pct_rmse_cm
-extreme_top_5pct_mae_cm
-```
-
-`validation_predictions.csv` 中保存两套数值：
-
-```text
-y_true_scaled    标准化后的验证标签
-y_pred_scaled    标准化后的 ensemble 预测
-y_true_raw       反标准化后的原始单位标签
-y_pred_raw       反标准化后的原始单位预测
-y_true_cm        厘米单位标签
-y_pred_cm        厘米单位预测
-```
-
-每个 seed 的预测也会保存为：
-
-```text
-pred_seed_0_scaled / pred_seed_0_raw / pred_seed_0_cm
-...
-pred_seed_4_scaled / pred_seed_4_raw / pred_seed_4_cm
-```
-
-## 4. 查看结果
-
-训练完成后，优先查看：
-
-```text
-outputs/xiamen/metrics.json
-outputs/xiamen/validation_predictions.csv
-figures/xiamen/pred_vs_obs.png
-figures/xiamen/scatter.png
-figures/xiamen/loss_curve.png
-```
-
-如果只想确认流程能跑通，先使用：
-
-```bash
-python src/train_xiamen.py --epochs 2 --batch-size 16
-```
-
-## 5. 不要提交真实数据和结果
+## 7. 不要提交真实数据和结果
 
 `.gitignore` 已排除：
 
 ```text
 data/
+cache/
 outputs/
 models/
 figures/
@@ -251,4 +236,4 @@ figures/
 *.zip
 ```
 
-请不要把 ERA20C、GESLA、`outputs/`、`models/`、`figures/` 或模型权重提交到 GitHub。
+请不要把 ERA20C、GESLA、`cache/`、`outputs/`、`models/`、`figures/` 或模型权重提交到 GitHub。

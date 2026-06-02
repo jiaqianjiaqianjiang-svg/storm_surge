@@ -11,8 +11,8 @@ import pandas as pd
 import xarray as xr
 
 from config import (
+    CACHE_ROOT,
     ERA20C_VARIABLE_CANDIDATES,
-    ERA20C_CACHE_DIR,
     ERA20C_VARIABLE_DIRS,
     GRID_SIZE,
     REGION_HALF_SIZE_DEG,
@@ -81,10 +81,10 @@ def find_year_file(variable: str, year: int) -> Path | None:
     return None
 
 
-def cache_path_for_year(variable: str, year: int) -> Path:
+def cache_path_for_year(variable: str, year: int, site_key: str = "xiamen") -> Path:
     """返回裁剪插值后 ERA 年文件的本地缓存路径。"""
 
-    return ERA20C_CACHE_DIR / f"xiamen_{variable}_{year}_{GRID_SIZE}x{GRID_SIZE}.nc"
+    return CACHE_ROOT / site_key / "era20c_yearly" / f"{site_key}_{variable}_{year}_{GRID_SIZE}x{GRID_SIZE}.nc"
 
 
 def sanitize_for_cache(da: xr.DataArray, variable: str) -> xr.DataArray:
@@ -219,7 +219,16 @@ class EraStats:
 class Era20cReader:
     """按年份读取 ERA-20C，并为 CNN 样本提供标准化后的数组。"""
 
-    def __init__(self, max_cache_items: int = 6) -> None:
+    def __init__(
+        self,
+        site_key: str = "xiamen",
+        site_lat: float = SITE_LAT,
+        site_lon: float = SITE_LON,
+        max_cache_items: int = 6,
+    ) -> None:
+        self.site_key = site_key
+        self.site_lat = site_lat
+        self.site_lon = site_lon
         self.stats: dict[str, EraStats] = {}
         self.max_cache_items = max_cache_items
         self._cache: OrderedDict[tuple[str, int], xr.DataArray] = OrderedDict()
@@ -260,7 +269,7 @@ class Era20cReader:
             self._cache.move_to_end(cache_key)
             return self._cache[cache_key]
 
-        cache_path = cache_path_for_year(variable, year)
+        cache_path = cache_path_for_year(variable, year, self.site_key)
         if cache_path.exists():
             print(f"[ERA] 读取缓存 {year} {variable}: {cache_path}")
             try:
@@ -280,7 +289,7 @@ class Era20cReader:
 
         print(f"[ERA] 读取 {year} {variable}: {path}")
         da = open_era20c_grib(path, variable)
-        da = subset_and_interp_station_region(da)
+        da = subset_and_interp_station_region(da, site_lat=self.site_lat, site_lon=self.site_lon)
         da = sanitize_for_cache(da.astype("float32"), variable)
         print(f"[ERA] {year} {variable} 插值后 shape: {tuple(da.shape)}")
         cache_path.parent.mkdir(parents=True, exist_ok=True)

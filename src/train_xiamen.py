@@ -36,7 +36,7 @@ except ModuleNotFoundError:
     DataLoader = None
     Dataset = object
 
-from config import PROJECT_ROOT, XIAMEN_OUTPUT_DIR
+from config import PROJECT_ROOT, SITES, get_site_config
 from metrics import compute_metrics
 from plot_results import ensure_figure_dir, plot_loss_curve, plot_pred_vs_obs, plot_scatter
 
@@ -83,7 +83,8 @@ class NpyStormSurgeDataset(Dataset):
 def parse_args() -> argparse.Namespace:
     """解析训练命令行参数。"""
 
-    parser = argparse.ArgumentParser(description="训练厦门站 CNN storm surge reconstruction 模型。")
+    parser = argparse.ArgumentParser(description="训练指定站点的 CNN storm surge reconstruction 模型。")
+    parser.add_argument("--site", choices=sorted(SITES), default="xiamen", help="要训练的站点")
     parser.add_argument("--epochs", type=int, default=100, help="训练轮数，论文复现实验可先用 100")
     parser.add_argument("--batch-size", type=int, default=32, help="batch size")
     parser.add_argument("--lr", type=float, default=0.001, help="SGD 学习率")
@@ -290,11 +291,12 @@ def main() -> None:
 
     from cnn_model import StormSurgeCNN
 
+    site = get_site_config(args.site)
     device = resolve_device(args.device)
 
-    output_dir = XIAMEN_OUTPUT_DIR
-    model_dir = PROJECT_ROOT / "models" / "xiamen"
-    figure_dir = ensure_figure_dir(PROJECT_ROOT / "figures" / "xiamen")
+    output_dir = site.output_dir
+    model_dir = PROJECT_ROOT / "models" / site.key
+    figure_dir = ensure_figure_dir(PROJECT_ROOT / "figures" / site.key)
     model_dir.mkdir(parents=True, exist_ok=True)
 
     required_files = [
@@ -317,6 +319,7 @@ def main() -> None:
     y_mean, y_std = load_y_scaler(output_dir)
 
     print("=" * 80)
+    print(f"[TRAIN] site: {site.name} ({site.key})")
     print(f"[TRAIN] device: {device}")
     print(f"[TRAIN] X_train shape: {train_dataset.x.shape}")
     print(f"[TRAIN] y_train shape: {train_dataset.y.shape}")
@@ -457,6 +460,8 @@ def main() -> None:
             "patience": args.patience,
             "min_delta": args.min_delta,
             "seeds": args.seeds,
+            "site": site.key,
+            "site_name": site.name,
             "n_train": len(train_dataset),
             "n_val": len(val_dataset),
             "extreme_percentile": args.extreme_percentile,
