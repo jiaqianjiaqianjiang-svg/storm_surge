@@ -141,11 +141,21 @@ def resolve_gesla_site_file(site: SiteConfig) -> Path:
     candidates: list[Path] = []
     for term in site.search_terms or (site.key,):
         candidates.extend(sorted(GESLA_DIR.glob(f"*{term}*")))
-    candidates = [path for path in candidates if path.is_file()]
+    candidates = [
+        path
+        for path in candidates
+        if path.is_file()
+        # macOS 解压到 Windows 时常会产生 ``._文件名`` 资源附属文件。
+        # 这类文件不是 GESLA 潮位数据，里面通常没有数据行，必须忽略。
+        and not path.name.startswith("._")
+        and not path.name.startswith(".")
+    ]
+    candidates = sorted(set(candidates), key=lambda path: path.name.lower())
     if not candidates:
         raise FileNotFoundError(
             f"找不到 {site.name} 的 GESLA 文件。请在 src/config.py 的 SITES['{site.key}'] "
-            f"中填写 filename。搜索目录: {GESLA_DIR}; 搜索词: {site.search_terms}"
+            f"中填写 filename。已自动忽略 ._ 开头的系统附属文件。"
+            f"搜索目录: {GESLA_DIR}; 搜索词: {site.search_terms}"
         )
     if len(candidates) > 1:
         print(f"[CONFIG] {site.name} 匹配到多个 GESLA 文件，使用第一个: {candidates[0]}")
