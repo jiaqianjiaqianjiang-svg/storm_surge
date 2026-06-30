@@ -218,3 +218,104 @@ figures/
 ```
 
 请不要把 ERA20C、GESLA、`outputs/`、`models/`、`figures/` 或模型权重提交到 GitHub。
+
+## 6. 短时预报模块
+
+短时预报代码位于 `src/`，与原论文复现流程共用厦门站配置，但不会删除或覆盖已有的论文复现代码。
+
+### 任务区别
+
+原论文复现任务是 storm surge reconstruction：
+
+```text
+U10/V10/SLP 大气场 -> 当天 daily maximum storm surge
+```
+
+新增短时预报任务是 autoregressive forecast：
+
+```text
+前 t 个时刻的大气场 + 前 t 个 storm surge 历史值 -> 下一步 storm surge
+```
+
+预测得到的新 storm surge 会加入历史窗口，继续滚动预测下一步。当前默认实现 hourly forecast，即使用前 `t` 小时预测下一小时 storm surge；同时保留 `daily` 和 `3hourly` 两种频率，便于和前期流程、ERA20C 3 小时资料做对比。
+
+### 输入构建
+
+默认配置在 `src/config.py` 第 7 节：
+
+- `FORECAST_DATA_SOURCE = "ERA20C"`，也可通过命令行改为 `ERA5`
+- `FORECAST_INPUT_STEPS = 24`
+- `FORECAST_HORIZON = 1`
+- `FORECAST_FREQUENCY = "hourly"`
+- `GRID_SIZE = 40`
+- `VARIABLES = ["u10", "v10", "msl"]`
+
+hourly forecast 中，每个样本包含：
+
+- 大气场输入：`(t*3, 40, 40)`，每个小时依次拼接 `U10/V10/MSL`
+- 历史增水输入：`(t,)`，前 `t` 小时 storm surge
+- 标签：下一小时 storm surge
+
+ERA 裁剪范围为厦门站周围约 `10°×10°`。代码会打印原始裁剪网格大小；如果已经是 `40×40` 就不插值，如果不是则插值/重采样到 `40×40`，并打印最终网格大小。
+
+### 数据路径和自动探测
+
+实验室真实路径默认写在 `src/config.py`：
+
+```python
+ERA20C_DIR = r"F:\ERA20C"
+ERA5_DIR = r"F:\ERA5"
+ERA5_ALL_DIR = r"F:\ERA5-ALL"
+ERA5_NEW_DIR = r"F:\ERA5-NEW"
+GESLA_DIR = r"F:\GESLA\GESLA3"
+SITE_FILE = r"F:\GESLA\GESLA3\xiamen-376a-chn-uhslc"
+```
+
+ERA5 目录可能是 `F:\ERA5`、`F:\ERA5-ALL` 或 `F:\ERA5-NEW`，脚本会逐个检查并打印实际使用的数据源。如果实验室 ERA5 文件结构和默认探测规则不一致，优先修改 `src/config.py` 中的路径和变量候选；必要时调整 `src/forecast_dataset.py` 的 `EraDailyFieldStore.find_year_file()`。
+
+### 训练
+
+```powershell
+python src/train_forecast_xiamen.py --data-source ERA5 --frequency hourly --start-year 1985 --end-year 1997 --input-steps 24 --epochs 50
+python src/train_forecast_xiamen.py --data-source ERA20C --frequency 3hourly --start-year 1985 --end-year 1997 --input-steps 8 --epochs 50
+```
+
+训练脚本会按时间顺序划分 train/val，使用 `MSELoss`，默认优化器为 Adam，也可用 `--optimizer sgd`。输出包括：
+
+- `models/forecast_xiamen/.../best_forecast_cnn.pth`
+- `outputs/forecast_xiamen/.../val_predictions.csv`
+- `outputs/forecast_xiamen/.../metrics.json`
+- `figures/forecast_xiamen/.../loss_curve.png`
+
+指标包含 Pearson r、RMSE、MAE 和 RRMSE。
+
+最小验收命令：
+
+```powershell
+python src/train_forecast_xiamen.py --data-source ERA5 --frequency hourly --start-year 1985 --end-year 1985 --input-steps 24 --epochs 2
+```
+
+12 小时和 24 小时历史窗口对比：
+
+```powershell
+python src/train_forecast_xiamen.py --data-source ERA5 --frequency hourly --start-year 1985 --end-year 1985 --input-steps 12 --epochs 5
+python src/train_forecast_xiamen.py --data-source ERA5 --frequency hourly --start-year 1985 --end-year 1985 --input-steps 24 --epochs 5
+python src/compare_forecast_windows.py --runs ERA5_1985_1985_hourly_t12_h1 ERA5_1985_1985_hourly_t24_h1 --output-name ERA5_1985_hourly_t12_vs_t24
+```
+
+### 滚动预报
+
+训练完成后，可使用保存的 best model 做历史模拟滚动预报：
+
+```powershell
+python src/rolling_forecast.py --model-path models/forecast_xiamen/ERA5_1985_1985_hourly_t24_h1/best_forecast_cnn.pth --data-source ERA5 --frequency hourly --start-date "1985-12-01 00:00" --input-steps 24 --steps 24
+```
+
+滚动逻辑是先预测第 `t+1` 步，再把预测值加入 storm surge 历史序列，继续预测下一步。输出：
+
+- `outputs/forecast_xiamen/.../rolling_forecast.csv`
+- `figures/forecast_xiamen/.../observed_vs_forecast.png`
+
+### 接入实时 ERA5 或其他预报数据
+
+当前训练用历史 ERA5/ERA20C 模拟预报实验。如果以后要接入实时 ERA5 或数值天气预报产品，只需要保证未来 `n` 步能提供与训练一致的 `U10/V10/MSL` 网格，并经过同样的厦门站周围裁剪、`40×40` 重采样和标准化流程。然后把未来气象场喂给 `src/rolling_forecast.py` 的滚动逻辑即可；storm surge 历史窗口前半段来自观测，后续由模型预测值递归回填。
