@@ -104,7 +104,7 @@ SURGE_MAD_THRESHOLD = 15.0
 # =========================
 
 # 可选 "ERA5" 或 "ERA20C"。训练脚本命令行参数会覆盖这里的默认值。
-FORECAST_DATA_SOURCE = "ERA20C"
+FORECAST_DATA_SOURCE = "ERA5"
 FORECAST_INPUT_STEPS = 24
 FORECAST_HORIZON = 1
 FORECAST_FREQUENCY = "hourly"  # 可选 "hourly"、"3hourly" 或 "daily"

@@ -90,6 +90,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--train-ratio", type=float, default=0.8)
     parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--save-arrays",
+        action="store_true",
+        help="显式保存 X_atmosphere.npy、X_surge_history.npy、y.npy；小时级数据很大，默认不保存。",
+    )
     return parser.parse_args()
 
 
@@ -208,6 +213,8 @@ def main() -> None:
     args = parse_args()
     if args.start_year > args.end_year:
         raise ValueError("--start-year 不能晚于 --end-year")
+    if args.horizon != 1:
+        raise ValueError("当前方案B短时滚动预报训练阶段请使用 horizon=1，多步预报请用 rolling_forecast.py")
     set_seed(args.seed)
     device = resolve_device(args.device)
     print(f"[TRAIN] 使用设备: {device}")
@@ -232,12 +239,21 @@ def main() -> None:
         frequency=args.frequency,
     )
     train_idx, val_idx = chronological_split(len(y), args.train_ratio)
+    print(f"[DATASET] X_atmosphere shape: {x_atm.shape}")
+    print(f"[DATASET] X_surge_history shape: {x_surge.shape}")
+    print(f"[DATASET] y shape: {y.shape}")
+    print(f"[DATASET] train size: {len(train_idx):,}")
+    print(f"[DATASET] val size: {len(val_idx):,}")
     x_atm_std, x_surge_std, y_std, scalers = standardize_train_val(x_atm, x_surge, y, train_idx)
 
-    np.save(output_dir / "X_atmosphere.npy", x_atm_std)
-    np.save(output_dir / "X_surge_history.npy", x_surge_std)
-    np.save(output_dir / "y.npy", y_std)
-    np.save(output_dir / "dates.npy", dates_np)
+    if args.save_arrays:
+        np.save(output_dir / "X_atmosphere.npy", x_atm_std)
+        np.save(output_dir / "X_surge_history.npy", x_surge_std)
+        np.save(output_dir / "y.npy", y_std)
+        np.save(output_dir / "dates.npy", dates_np)
+        print(f"[OUTPUT] 已保存标准化数组: {output_dir}")
+    else:
+        print("[OUTPUT] 默认不保存 X_atmosphere/X_surge_history/y 大数组；如需保存请加 --save-arrays")
     (output_dir / "scalers.json").write_text(json.dumps(scalers, ensure_ascii=False, indent=2), encoding="utf-8")
 
     train_ds = ForecastArrayDataset(x_atm_std[train_idx], x_surge_std[train_idx], y_std[train_idx])

@@ -111,9 +111,14 @@ def read_gesla_file(path: Path) -> pd.DataFrame:
             format="%Y/%m/%d %H:%M:%S",
             errors="coerce",
         )
+        use_flag = pd.to_numeric(df["use_flag"], errors="coerce")
+        if use_flag.notna().any():
+            before = len(df)
+            df = df.loc[use_flag == 1].copy()
+            print(f"[GESLA] use_flag 过滤无效记录: {before - len(df):,}")
         df = df[["datetime", "sea_level"]]
     except Exception:
-        rows: list[tuple[pd.Timestamp, float]] = []
+        rows: list[tuple[pd.Timestamp, float, float | None]] = []
         with path.open("r", encoding="utf-8", errors="ignore") as f:
             for raw in f:
                 tokens = raw.strip().split()
@@ -124,7 +129,13 @@ def read_gesla_file(path: Path) -> pd.DataFrame:
                     rows.append(parsed)
         if not rows:
             raise ValueError(f"没有在 GESLA 文件中识别到数据行: {path}")
-        df = pd.DataFrame(rows, columns=["datetime", "sea_level"])
+        df = pd.DataFrame(rows, columns=["datetime", "sea_level", "use_flag"])
+        use_flag = pd.to_numeric(df["use_flag"], errors="coerce")
+        if use_flag.notna().any():
+            before = len(df)
+            df = df.loc[use_flag == 1].copy()
+            print(f"[GESLA] use_flag 过滤无效记录: {before - len(df):,}")
+        df = df[["datetime", "sea_level"]]
 
     df = df.dropna().drop_duplicates("datetime").sort_values("datetime")
     df["sea_level"] = pd.to_numeric(df["sea_level"], errors="coerce")
@@ -144,7 +155,7 @@ def _is_float(token: str) -> bool:
         return False
 
 
-def _parse_gesla_line(tokens: list[str]) -> tuple[pd.Timestamp, float] | None:
+def _parse_gesla_line(tokens: list[str]) -> tuple[pd.Timestamp, float, float | None] | None:
     """解析一行 GESLA 数据。"""
 
     patterns = []
@@ -160,7 +171,11 @@ def _parse_gesla_line(tokens: list[str]) -> tuple[pd.Timestamp, float] | None:
     for candidate, consumed in patterns:
         dt = pd.to_datetime(candidate, errors="coerce")
         if pd.notna(dt) and consumed < len(tokens) and _is_float(tokens[consumed]):
-            return pd.Timestamp(dt), float(tokens[consumed])
+            # GESLA 常见格式为 date time sea_level qc_flag use_flag。
+            # 对数字拆分日期格式，sea_level 后通常也是 qc_flag、use_flag。
+            use_flag_index = consumed + 2
+            use_flag = float(tokens[use_flag_index]) if use_flag_index < len(tokens) and _is_float(tokens[use_flag_index]) else None
+            return pd.Timestamp(dt), float(tokens[consumed]), use_flag
     return None
 
 
@@ -227,14 +242,20 @@ def load_surge_series(start_year: int, end_year: int, frequency: str = config.FO
     daily：取 daily maximum storm surge，用于前期流程验证和论文 daily 标签对比。
     """
 
-    csv_candidates = [
+    daily_candidates = [
         config.FORECAST_OUTPUT_ROOT / "daily_max_surge.csv",
-        config.FORECAST_OUTPUT_ROOT / "cleaned_surge.csv",
         config.XIAMEN_OUTPUT_DIR / "daily_max_surge.csv",
-        config.XIAMEN_OUTPUT_DIR / "cleaned_surge.csv",
         config.REPO_ROOT / "code_my" / "xiamen" / "outputs" / "xiamen" / "daily_max_surge.csv",
+    ]
+    cleaned_candidates = [
+        config.FORECAST_OUTPUT_ROOT / "cleaned_surge.csv",
+        config.XIAMEN_OUTPUT_DIR / "cleaned_surge.csv",
         config.REPO_ROOT / "code_my" / "xiamen" / "outputs" / "xiamen" / "cleaned_surge.csv",
     ]
+    if frequency == "daily":
+        csv_candidates = daily_candidates + cleaned_candidates
+    else:
+        csv_candidates = cleaned_candidates + daily_candidates
     for path in csv_candidates:
         if path.exists():
             print(f"[SURGE] 使用已有 CSV: {path}")
@@ -518,6 +539,9 @@ def build_forecast_arrays(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, pd.DatetimeIndex]:
     """构建指定频率的 forecast 数组。"""
 
+    if horizon != 1:
+        raise ValueError("当前方案B短时滚动预报训练阶段请使用 horizon=1，多步预报请用 rolling_forecast.py")
+
     variables = variables or list(config.VARIABLES)
     surge = load_surge_series(start_year, end_year, frequency=frequency)
     era = EraDailyFieldStore(data_source, start_year, end_year, variables, frequency=frequency)
@@ -556,6 +580,7 @@ def build_forecast_arrays(
     print(f"[DATASET] 样本数: {len(y):,}")
     print(f"[DATASET] atmosphere shape: ({len(y)}, {input_steps * len(variables)}, 40, 40)")
     print(f"[DATASET] surge_history shape: ({len(y)}, {input_steps})")
+    print(f"[DATASET] y shape: ({len(y)},)")
     return (
         np.stack(x_atm).astype("float32"),
         np.stack(x_surge).astype("float32"),

@@ -45,13 +45,28 @@ configure_console_encoding()
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="厦门站 storm surge 滚动预报。")
     parser.add_argument("--model-path", type=Path, required=True)
-    parser.add_argument("--data-source", choices=["ERA5", "ERA20C"], default=config.FORECAST_DATA_SOURCE)
-    parser.add_argument("--frequency", choices=["hourly", "3hourly", "daily"], default=config.FORECAST_FREQUENCY)
+    parser.add_argument("--data-source", choices=["ERA5", "ERA20C"], default=None)
+    parser.add_argument("--frequency", choices=["hourly", "3hourly", "daily"], default=None)
     parser.add_argument("--start-date", type=str, required=True, help="第一个预报目标时间，例如 1985-12-01 00:00")
     parser.add_argument("--steps", type=int, default=7, help="向后滚动预报步数")
-    parser.add_argument("--input-steps", type=int, default=config.FORECAST_INPUT_STEPS)
+    parser.add_argument("--input-steps", type=int, default=None)
     parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
     return parser.parse_args()
+
+
+def resolve_checkpoint_arg(args: argparse.Namespace, checkpoint_args: dict[str, object], name: str, default: object) -> object:
+    """命令行参数优先；未提供时使用训练 checkpoint 中保存的参数。"""
+
+    cli_value = getattr(args, name)
+    ckpt_value = checkpoint_args.get(name)
+    if cli_value is not None:
+        if ckpt_value is not None and cli_value != ckpt_value:
+            print(f"[WARN] 命令行 --{name.replace('_', '-')}={cli_value} 与 checkpoint args 中的 {ckpt_value} 不一致，使用命令行值")
+        return cli_value
+    if ckpt_value is not None:
+        print(f"[ROLLING] 从 checkpoint args 读取 {name}: {ckpt_value}")
+        return ckpt_value
+    return default
 
 
 def resolve_device(choice: str) -> torch.device:
@@ -79,6 +94,12 @@ def main() -> None:
     checkpoint = torch.load(args.model_path, map_location=device)
     scalers = checkpoint["scalers"]
     variables = checkpoint.get("variables", config.VARIABLES)
+    checkpoint_args = checkpoint.get("args", {})
+    if not isinstance(checkpoint_args, dict):
+        checkpoint_args = {}
+    args.input_steps = int(resolve_checkpoint_arg(args, checkpoint_args, "input_steps", config.FORECAST_INPUT_STEPS))
+    args.frequency = str(resolve_checkpoint_arg(args, checkpoint_args, "frequency", config.FORECAST_FREQUENCY))
+    args.data_source = str(resolve_checkpoint_arg(args, checkpoint_args, "data_source", config.FORECAST_DATA_SOURCE))
     model = ForecastCNN(input_steps=args.input_steps, n_variables=len(variables), grid_size=config.GRID_SIZE).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
