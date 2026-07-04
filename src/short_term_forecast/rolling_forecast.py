@@ -31,7 +31,7 @@ import torch
 
 import config
 from forecast_cnn_model import ForecastCNN
-from forecast_dataset import EraDailyFieldStore, frequency_to_timedelta, load_surge_series
+from forecast_dataset import EraHourlyFieldStore, frequency_to_timedelta, load_surge_series
 
 
 def configure_console_encoding() -> None:
@@ -49,8 +49,8 @@ configure_console_encoding()
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="厦门站 storm surge 滚动预报。")
     parser.add_argument("--model-path", type=Path, required=True)
-    parser.add_argument("--data-source", choices=["ERA5", "ERA20C"], default=None)
-    parser.add_argument("--frequency", choices=["hourly", "3hourly", "daily"], default=None)
+    parser.add_argument("--data-source", choices=["ERA5"], default=None)
+    parser.add_argument("--frequency", choices=["hourly"], default=None)
     parser.add_argument("--start-date", type=str, required=True, help="第一个预报目标时间，例如 1985-12-01 00:00")
     parser.add_argument("--steps", type=int, default=7, help="向后滚动预报步数")
     parser.add_argument("--input-steps", type=int, default=None)
@@ -104,18 +104,18 @@ def main() -> None:
     args.input_steps = int(resolve_checkpoint_arg(args, checkpoint_args, "input_steps", config.FORECAST_INPUT_STEPS))
     args.frequency = str(resolve_checkpoint_arg(args, checkpoint_args, "frequency", config.FORECAST_FREQUENCY))
     args.data_source = str(resolve_checkpoint_arg(args, checkpoint_args, "data_source", config.FORECAST_DATA_SOURCE))
+    if args.data_source != "ERA5" or args.frequency != "hourly":
+        raise ValueError("短时预报滚动模块固定使用 ERA5 hourly 模型")
     model = ForecastCNN(input_steps=args.input_steps, n_variables=len(variables), grid_size=config.GRID_SIZE).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
 
     first_target = pd.Timestamp(args.start_date)
-    if args.frequency == "daily":
-        first_target = first_target.normalize()
     step_delta = frequency_to_timedelta(args.frequency)
     start_year = (first_target - args.input_steps * step_delta).year
     end_year = (first_target + args.steps * step_delta).year
     surge = load_surge_series(start_year, end_year, frequency=args.frequency)
-    era = EraDailyFieldStore(args.data_source, start_year, end_year, list(variables), frequency=args.frequency)
+    era = EraHourlyFieldStore(args.data_source, start_year, end_year, list(variables), frequency=args.frequency)
     era.load()
 
     history_dates = list(pd.date_range(end=first_target - step_delta, periods=args.input_steps, freq=step_delta))

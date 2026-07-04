@@ -4,13 +4,11 @@
 使用前 t 个小时 ERA5 的 U10、V10、MSL 40×40 网格，
 再加前 t 个小时 storm surge，预测下一小时 storm surge。
 
-建议 ERA5 小时级实验先用 --frequency hourly --input-steps 24，
-即“前 24 小时预测下一小时”。ERA20C 原始为 3 小时，可用 --frequency 3hourly。
-daily 频率仍保留，用于前期流程验证和 daily maximum surge 对比。
+建议 ERA5 小时级实验先用 --input-steps 24，
+即“前 24 小时预测下一小时”。
 
 示例：
-python src/short_term_forecast/train_forecast_xiamen.py --data-source ERA5 --start-year 1985 --end-year 1997 --input-steps 24 --epochs 50
-python src/short_term_forecast/train_forecast_xiamen.py --data-source ERA20C --frequency 3hourly --start-year 1985 --end-year 1997 --input-steps 16 --epochs 50
+python src/short_term_forecast/train_forecast_xiamen.py --start-year 1985 --end-year 1997 --input-steps 24 --epochs 50
 """
 
 from __future__ import annotations
@@ -59,7 +57,7 @@ configure_console_encoding()
 
 
 class ForecastArrayDataset(Dataset):
-    """内存数组版 Dataset，适合厦门站 daily forecast 小到中等规模实验。"""
+    """内存数组版 Dataset，适合厦门站小时级短时预报实验。"""
 
     def __init__(self, atmosphere: np.ndarray, surge_history: np.ndarray, target: np.ndarray) -> None:
         self.atmosphere = atmosphere
@@ -78,9 +76,9 @@ class ForecastArrayDataset(Dataset):
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="训练厦门站短时风暴潮 forecast CNN。")
-    parser.add_argument("--data-source", choices=["ERA5", "ERA20C"], default=config.FORECAST_DATA_SOURCE)
-    parser.add_argument("--frequency", choices=["hourly", "3hourly", "daily"], default=config.FORECAST_FREQUENCY)
+    parser = argparse.ArgumentParser(description="训练厦门站 ERA5 小时级短时风暴潮预报 CNN。")
+    parser.add_argument("--data-source", choices=["ERA5"], default="ERA5", help="短时预报模块固定使用 ERA5")
+    parser.add_argument("--frequency", choices=["hourly"], default="hourly", help="短时预报模块固定使用 hourly")
     parser.add_argument("--start-year", type=int, required=True)
     parser.add_argument("--end-year", type=int, required=True)
     parser.add_argument("--input-steps", type=int, default=config.FORECAST_INPUT_STEPS)

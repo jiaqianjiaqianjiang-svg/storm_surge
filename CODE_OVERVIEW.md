@@ -67,6 +67,20 @@ U10/V10/SLP 大气场 -> 当天 daily maximum storm surge
 6. `compare_forecast_windows.py`  
    对比不同输入窗口长度，例如 `t=12h` 和 `t=24h` 的验证集效果。
 
+## 短时预报复用了哪些原论文代码思路
+
+短时预报没有直接改写原论文训练脚本，而是在新目录中单独实现。复用和继承的部分主要有：
+
+```text
+1. 共享 config.py 中的厦门站经纬度、GESLA 路径、输出目录和 40x40 网格参数。
+2. 复用了原论文流程中的 GESLA 读取、缺测值过滤、MAD 异常值过滤和 UTide 去潮思路。
+3. 复用了原论文中“站点周围区域裁剪并统一到 40x40 网格”的数据处理思路。
+4. 复用了原论文 CNN 从 U10/V10/SLP 空间场提取特征的建模思路。
+5. 指标仍使用 Pearson r、RMSE、MAE、RRMSE，方便和之前结果对照。
+```
+
+区别是：短时预报的标签不再是当天日最大增水，而是下一小时 storm surge；输入也增加了前 `t` 小时历史 storm surge。
+
 ## 常用命令
 
 检查路径：
@@ -78,13 +92,13 @@ python src/test_paths.py
 训练 24 小时窗口小时级模型：
 
 ```bash
-python src/short_term_forecast/train_forecast_xiamen.py --data-source ERA5 --frequency hourly --start-year 1985 --end-year 1985 --input-steps 24 --epochs 2
+python src/short_term_forecast/train_forecast_xiamen.py --start-year 1985 --end-year 1985 --input-steps 24 --epochs 2
 ```
 
 训练 12 小时窗口小时级模型：
 
 ```bash
-python src/short_term_forecast/train_forecast_xiamen.py --data-source ERA5 --frequency hourly --start-year 1985 --end-year 1985 --input-steps 12 --epochs 2
+python src/short_term_forecast/train_forecast_xiamen.py --start-year 1985 --end-year 1985 --input-steps 12 --epochs 2
 ```
 
 运行 24 小时窗口滚动预报：

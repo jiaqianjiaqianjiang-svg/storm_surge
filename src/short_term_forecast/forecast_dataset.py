@@ -3,8 +3,6 @@
 默认实现 hourly forecast：
 前 t 个小时的 U10/V10/MSL 40×40 网格 + 前 t 个小时的 storm surge
 预测下一小时 storm surge。
-
-同时保留 daily 和 3hourly 两种频率，便于和前期流程、ERA20C 3 小时数据对比。
 """
 
 from __future__ import annotations
@@ -28,13 +26,9 @@ def _path_exists(path: Path) -> bool:
 def frequency_to_pandas_rule(frequency: str) -> str:
     """把命令行频率转换成 pandas/xarray 可用的重采样频率。"""
 
-    if frequency == "daily":
-        return "1D"
     if frequency == "hourly":
         return "1h"
-    if frequency == "3hourly":
-        return "3h"
-    raise ValueError("--frequency 只能是 daily、hourly 或 3hourly")
+    raise ValueError("短时预报模块固定使用 hourly 频率")
 
 
 def frequency_to_timedelta(frequency: str) -> pd.Timedelta:
@@ -61,9 +55,7 @@ def resolve_era_root(data_source: str) -> Path:
     """根据数据源自动选择 ERA 根目录。"""
 
     source = data_source.upper()
-    if source == "ERA20C":
-        candidates = [config.ERA20C_DIR, config.LOCAL_ERA20C_DIR]
-    elif source == "ERA5":
+    if source == "ERA5":
         # ERA5 优先使用已经按厦门站整理好的站点级 NetCDF。
         # 实验室当前目录中 F:\ERA5-NEW\Xiamen 下有
         # xiamen_10u_1970_1997.nc / xiamen_v10_1970_1997.nc /
@@ -78,7 +70,7 @@ def resolve_era_root(data_source: str) -> Path:
             config.ERA5_ALL_DIR,
         ]
     else:
-        raise ValueError("--data-source 只能是 ERA5 或 ERA20C")
+        raise ValueError("短时预报模块固定使用 ERA5")
 
     print(f"[DATA] 请求数据源: {source}")
     for path in candidates:
@@ -235,27 +227,18 @@ def _separate_tide_with_utide(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def load_surge_series(start_year: int, end_year: int, frequency: str = config.FORECAST_FREQUENCY) -> pd.DataFrame:
-    """读取或生成指定频率的 storm surge 序列。
+    """读取或生成小时级 storm surge 序列。
 
     hourly：保留 GESLA/UTide 得到的小时级 storm surge，用前 t 小时预测下一小时。
-    3hourly：把小时级 storm surge 聚合到 3 小时，用前 t 个 3 小时时刻预测下一时刻。
-    daily：取 daily maximum storm surge，用于前期流程验证和论文 daily 标签对比。
     """
 
-    daily_candidates = [
-        config.FORECAST_OUTPUT_ROOT / "daily_max_surge.csv",
-        config.XIAMEN_OUTPUT_DIR / "daily_max_surge.csv",
-        config.REPO_ROOT / "code_my" / "xiamen" / "outputs" / "xiamen" / "daily_max_surge.csv",
-    ]
+    frequency_to_pandas_rule(frequency)
     cleaned_candidates = [
         config.FORECAST_OUTPUT_ROOT / "cleaned_surge.csv",
         config.XIAMEN_OUTPUT_DIR / "cleaned_surge.csv",
         config.REPO_ROOT / "code_my" / "xiamen" / "outputs" / "xiamen" / "cleaned_surge.csv",
     ]
-    if frequency == "daily":
-        csv_candidates = daily_candidates + cleaned_candidates
-    else:
-        csv_candidates = cleaned_candidates + daily_candidates
+    csv_candidates = cleaned_candidates
     for path in csv_candidates:
         if path.exists():
             print(f"[SURGE] 使用已有 CSV: {path}")
@@ -263,17 +246,9 @@ def load_surge_series(start_year: int, end_year: int, frequency: str = config.FO
             date_col = "date" if "date" in df.columns else df.columns[0]
             df[date_col] = pd.to_datetime(df[date_col])
             df = df.set_index(date_col).sort_index()
-            if frequency == "daily":
-                if "daily_max_surge" in df.columns:
-                    series = df["daily_max_surge"]
-                elif "storm_surge" in df.columns:
-                    series = df["storm_surge"].resample("1D").max()
-                else:
-                    raise KeyError(f"{path} 中缺少 daily_max_surge 或 storm_surge 列")
-            else:
-                if "storm_surge" not in df.columns:
-                    continue
-                series = df["storm_surge"].resample(frequency_to_pandas_rule(frequency)).mean()
+            if "storm_surge" not in df.columns:
+                continue
+            series = df["storm_surge"].resample(frequency_to_pandas_rule(frequency)).mean()
             out = series.dropna().rename("storm_surge").to_frame()
             return _restrict_surge_years(out, start_year, end_year, frequency)
 
@@ -286,19 +261,9 @@ def load_surge_series(start_year: int, end_year: int, frequency: str = config.FO
     if raw.empty:
         raise ValueError(f"GESLA 在 {start_year}-{end_year} 内没有记录")
     surge = _separate_tide_with_utide(raw)
-    if frequency == "daily":
-        series = surge["storm_surge"].resample("1D").max()
-    else:
-        series = surge["storm_surge"].resample(frequency_to_pandas_rule(frequency)).mean()
+    series = surge["storm_surge"].resample(frequency_to_pandas_rule(frequency)).mean()
     out = series.dropna().rename("storm_surge").to_frame()
     return _restrict_surge_years(out, start_year, end_year, frequency)
-
-
-def load_daily_surge(start_year: int, end_year: int) -> pd.DataFrame:
-    """兼容旧调用：读取或生成 daily maximum storm surge。"""
-
-    out = load_surge_series(start_year, end_year, frequency="daily")
-    return out.rename(columns={"storm_surge": "daily_max_surge"})
 
 
 def _restrict_surge_years(df: pd.DataFrame, start_year: int, end_year: int, frequency: str) -> pd.DataFrame:
@@ -308,10 +273,7 @@ def _restrict_surge_years(df: pd.DataFrame, start_year: int, end_year: int, freq
     ].copy()
     if out.empty:
         raise ValueError(f"{start_year}-{end_year} 没有 {frequency} storm surge 标签")
-    if frequency == "daily":
-        out.index = pd.DatetimeIndex(out.index).normalize()
-    else:
-        out.index = pd.DatetimeIndex(out.index)
+    out.index = pd.DatetimeIndex(out.index)
     print(f"[SURGE] {frequency} 标签数: {len(out):,}")
     print(f"[SURGE] 时间范围: {out.index.min()} -> {out.index.max()}")
     return out
@@ -352,14 +314,13 @@ def _filename_covers_year(filename: str, year: int) -> bool:
 
 
 def _open_era_file(path: Path, variable: str) -> xr.DataArray:
-    """打开 GRIB/NetCDF 文件并返回目标变量。"""
+    """打开 NetCDF 文件并返回目标变量。"""
 
     suffix = path.suffix.lower()
     try:
-        if suffix in {".grb", ".grib"}:
-            ds = xr.open_dataset(path, engine="cfgrib", backend_kwargs={"indexpath": ""})
-        else:
-            ds = xr.open_dataset(path)
+        if suffix not in {".nc", ".netcdf"}:
+            raise ValueError("短时预报模块只读取 ERA5 NetCDF 文件")
+        ds = xr.open_dataset(path)
     except Exception as exc:
         raise RuntimeError(f"无法读取 ERA 文件: {path}") from exc
 
@@ -426,8 +387,8 @@ def subset_and_resample_grid(da: xr.DataArray, grid_size: int = config.GRID_SIZE
 
 
 @dataclass
-class EraDailyFieldStore:
-    """缓存指定频率 ERA 网格，供样本构建和滚动预测复用。"""
+class EraHourlyFieldStore:
+    """缓存 ERA5 小时级网格，供样本构建和滚动预测复用。"""
 
     data_source: str
     start_year: int
@@ -438,7 +399,7 @@ class EraDailyFieldStore:
 
     def __post_init__(self) -> None:
         self.era_root = self.era_root or resolve_era_root(self.data_source)
-        self.daily_fields: dict[str, xr.DataArray] = {}
+        self.fields: dict[str, xr.DataArray] = {}
 
     def load(self) -> None:
         for variable in self.variables:
@@ -473,13 +434,8 @@ class EraDailyFieldStore:
             if len(unique_index) != merged.sizes["time"]:
                 merged = merged.isel(time=np.sort(unique_index)).sortby("time")
             rule = frequency_to_pandas_rule(self.frequency)
-            if self.frequency == "daily":
-                field = merged.resample(time=rule).mean(skipna=True)
-            else:
-                # ERA5 本身是小时级；ERA20C 本身是 3 小时级。这里用 mean 重采样，
-                # 让 hourly / 3hourly 序列和 storm surge 的时间索引一致。
-                field = merged.resample(time=rule).mean(skipna=True).dropna("time", how="any")
-            self.daily_fields[variable] = field.astype("float32")
+            field = merged.resample(time=rule).mean(skipna=True).dropna("time", how="any")
+            self.fields[variable] = field.astype("float32")
             print(f"[ERA] {variable} {self.frequency} 场 shape: {tuple(field.shape)}")
 
     def find_year_file(self, variable: str, year: int) -> Path | None:
@@ -487,12 +443,8 @@ class EraDailyFieldStore:
 
         assert self.era_root is not None
         search_roots = [self.era_root]
-        for hint in config.ERA20C_VARIABLE_DIR_HINTS.get(variable, ()):
-            candidate = self.era_root / hint
-            if candidate.exists():
-                search_roots.insert(0, candidate)
 
-        extensions = (".nc", ".grb", ".grib")
+        extensions = (".nc", ".netcdf")
         hints = config.ERA_FILE_HINTS[variable]
         matches: list[Path] = []
         for root in search_roots:
@@ -514,10 +466,8 @@ class EraDailyFieldStore:
         channels: list[np.ndarray] = []
         for date in dates:
             date = pd.Timestamp(date)
-            if self.frequency == "daily":
-                date = date.normalize()
             for variable in self.variables:
-                da = self.daily_fields[variable].sel(time=date)
+                da = self.fields[variable].sel(time=date)
                 arr = da.to_numpy().astype("float32")
                 if arr.shape != (config.GRID_SIZE, config.GRID_SIZE):
                     raise ValueError(f"{date.date()} {variable} 网格 shape 异常: {arr.shape}")
@@ -544,7 +494,7 @@ def build_forecast_arrays(
 
     variables = variables or list(config.VARIABLES)
     surge = load_surge_series(start_year, end_year, frequency=frequency)
-    era = EraDailyFieldStore(data_source, start_year, end_year, variables, frequency=frequency)
+    era = EraHourlyFieldStore(data_source, start_year, end_year, variables, frequency=frequency)
     era.load()
 
     x_atm: list[np.ndarray] = []
