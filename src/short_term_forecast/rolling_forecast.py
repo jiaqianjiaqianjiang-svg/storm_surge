@@ -92,12 +92,18 @@ def standardize_atmosphere_for_inference(atm: np.ndarray, scalers: dict[str, obj
     return ((atm - mean) / std).astype("float32")
 
 
+def normalize_variable_names(variables: list[str]) -> list[str]:
+    """兼容旧 checkpoint：旧模型里保存的 msl 在新代码中统一记为 slp。"""
+
+    return ["slp" if value == "msl" else value for value in variables]
+
+
 def main() -> None:
     args = parse_args()
     device = resolve_device(args.device)
     checkpoint = torch.load(args.model_path, map_location=device)
     scalers = checkpoint["scalers"]
-    variables = checkpoint.get("variables", config.VARIABLES)
+    variables = normalize_variable_names(list(checkpoint.get("variables", config.VARIABLES)))
     checkpoint_args = checkpoint.get("args", {})
     if not isinstance(checkpoint_args, dict):
         checkpoint_args = {}

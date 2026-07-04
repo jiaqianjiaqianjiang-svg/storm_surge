@@ -109,8 +109,10 @@ FORECAST_INPUT_STEPS = 24
 FORECAST_HORIZON = 1
 FORECAST_FREQUENCY = "hourly"
 
-# 短时预报使用前 t 个时刻的 U10/V10/MSL 和前 t 个 storm surge 历史值。
-VARIABLES = ["u10", "v10", "msl"]
+# 短时预报使用前 t 个时刻的 U10/V10/SLP 和前 t 个 storm surge 历史值。
+# ERA5 文件中的海平面气压变量名通常是 msl，这里对外统一称为 slp，
+# 读取时仍会自动识别 msl/slp/sp/var151。
+VARIABLES = ["u10", "v10", "slp"]
 
 # ERA5 目录在实验室电脑上可能有多个版本，代码会按顺序检查并打印实际使用路径。
 ERA5_DIR = Path(r"F:\ERA5")
@@ -128,11 +130,11 @@ FORECAST_FIGURE_ROOT = PROJECT_ROOT / "figures" / "forecast_xiamen"
 ERA_VARIABLE_CANDIDATES = {
     "u10": ("u10", "10u", "u", "var165"),
     "v10": ("v10", "10v", "v", "var166"),
-    "msl": ("msl", "slp", "sp", "var151"),
+    "slp": ("msl", "slp", "sp", "var151"),
 }
 
 ERA_FILE_HINTS = {
     "u10": ("u10", "10u", "165"),
     "v10": ("v10", "10v", "166"),
-    "msl": ("msl", "slp", "151"),
+    "slp": ("slp", "msl", "151"),
 }

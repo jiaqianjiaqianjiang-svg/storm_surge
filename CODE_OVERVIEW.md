@@ -39,13 +39,13 @@ U10/V10/SLP 大气场 -> 当天 daily maximum storm surge
 新增短时预报任务是小时级预报：
 
 ```text
-前 t 小时 ERA5 U10/V10/MSL 40x40
+前 t 小时 ERA5 U10/V10/SLP 40x40
 +
 前 t 小时 storm surge
 -> 下一小时 storm surge
 ```
 
-其中 `MSL` 是 ERA5 中的海平面气压变量名，对应常说的 `SLP`。
+其中 SLP 在部分 ERA5 文件中的变量名可能是 `msl`，代码会自动识别。
 
 ## 短时预报代码逻辑
 

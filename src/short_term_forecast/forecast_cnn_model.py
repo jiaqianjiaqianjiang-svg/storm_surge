@@ -71,7 +71,7 @@ class ForecastCNN(nn.Module):
         ----------
         atmosphere:
             shape = (batch, t*3, 40, 40)，通道顺序为每个时间步依次拼接
-            U10、V10、SLP/MSL。
+            U10、V10、SLP。
         surge_history:
             shape = (batch, t)，最近 t 个 storm surge 历史值。
         """

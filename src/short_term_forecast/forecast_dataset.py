@@ -1,7 +1,7 @@
 """厦门站短时风暴潮预报数据集构建。
 
 默认实现 hourly forecast：
-前 t 个小时的 U10/V10/MSL 40×40 网格 + 前 t 个小时的 storm surge
+前 t 个小时的 U10/V10/SLP 40×40 网格 + 前 t 个小时的 storm surge
 预测下一小时 storm surge。
 """
 

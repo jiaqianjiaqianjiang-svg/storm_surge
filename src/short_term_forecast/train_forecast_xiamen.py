@@ -1,7 +1,7 @@
 """训练厦门站短时风暴潮预报模型。
 
 当前默认实现 hourly forecast：
-使用前 t 个小时 ERA5 的 U10、V10、MSL 40×40 网格，
+使用前 t 个小时 ERA5 的 U10、V10、SLP 40×40 网格，
 再加前 t 个小时 storm surge，预测下一小时 storm surge。
 
 建议 ERA5 小时级实验先用 --input-steps 24，
