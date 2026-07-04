@@ -9,8 +9,8 @@
 daily 频率仍保留，用于前期流程验证和 daily maximum surge 对比。
 
 示例：
-python src/train_forecast_xiamen.py --data-source ERA5 --start-year 1985 --end-year 1997 --input-steps 8 --epochs 50
-python src/train_forecast_xiamen.py --data-source ERA20C --start-year 1985 --end-year 1997 --input-steps 16 --epochs 50
+python src/short_term_forecast/train_forecast_xiamen.py --data-source ERA5 --start-year 1985 --end-year 1997 --input-steps 24 --epochs 50
+python src/short_term_forecast/train_forecast_xiamen.py --data-source ERA20C --frequency 3hourly --start-year 1985 --end-year 1997 --input-steps 16 --epochs 50
 """
 
 from __future__ import annotations
@@ -22,8 +22,12 @@ import random
 import sys
 from pathlib import Path
 
+SRC_ROOT = Path(__file__).resolve().parents[1]
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-os.environ.setdefault("MPLCONFIGDIR", str(Path(__file__).resolve().parents[1] / "outputs" / ".matplotlib"))
+os.environ.setdefault("MPLCONFIGDIR", str(Path(__file__).resolve().parents[2] / "outputs" / ".matplotlib"))
 Path(os.environ["MPLCONFIGDIR"]).mkdir(parents=True, exist_ok=True)
 
 import matplotlib

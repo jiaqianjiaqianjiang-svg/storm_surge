@@ -1,7 +1,7 @@
 """对比不同历史窗口长度的短时预报结果。
 
 示例：
-python src/compare_forecast_windows.py --runs ERA5_1985_1985_hourly_t12_h1 ERA5_1985_1985_hourly_t24_h1
+python src/short_term_forecast/compare_forecast_windows.py --runs ERA5_1985_1985_hourly_t12_h1 ERA5_1985_1985_hourly_t24_h1
 """
 
 from __future__ import annotations
@@ -9,9 +9,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 
-os.environ.setdefault("MPLCONFIGDIR", str(Path(__file__).resolve().parents[1] / "outputs" / ".matplotlib"))
+SRC_ROOT = Path(__file__).resolve().parents[1]
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+os.environ.setdefault("MPLCONFIGDIR", str(Path(__file__).resolve().parents[2] / "outputs" / ".matplotlib"))
 Path(os.environ["MPLCONFIGDIR"]).mkdir(parents=True, exist_ok=True)
 
 import matplotlib
