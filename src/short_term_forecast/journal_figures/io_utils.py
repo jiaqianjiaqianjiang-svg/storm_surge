@@ -242,7 +242,17 @@ def normalize_metrics(metrics: dict[str, object]) -> dict[str, float | str | int
                 out[normalized] = float(value)
         except (TypeError, ValueError):
             continue
-    for key in ("model_name", "model", "input_steps", "forecast_steps", "n_train", "n_val"):
+    for key in (
+        "model_name",
+        "model",
+        "input_steps",
+        "forecast_steps",
+        "n_train",
+        "n_val",
+        "val_size",
+        "validation_samples",
+        "n_validation",
+    ):
         if key in lowered:
             out[key] = lowered[key]
     return out
@@ -345,4 +355,3 @@ def load_prediction_csv(path: Path) -> tuple[pd.DataFrame | None, dict[str, obje
     if raw is None:
         return None, {"warning": "cannot read csv"}
     return normalize_prediction_frame(raw, source=str(path))
-

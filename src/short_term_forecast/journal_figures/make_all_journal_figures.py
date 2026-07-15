@@ -12,7 +12,7 @@ from .plot_event_comparison import plot_event_comparison
 from .plot_peak_analysis import plot_peak_analysis
 from .plot_residual_diagnostics import plot_residual_diagnostics
 from .plot_rolling_forecast import plot_rolling_forecast
-from .plot_window_comparison import plot_window_metrics, plot_window_scatter, plot_window_timeseries
+from .plot_window_comparison import plot_window_metrics, plot_window_scatter, plot_window_timeseries, select_window_experiments
 
 
 def _path_text(paths: dict[str, Path] | None, extension: str) -> str:
@@ -33,8 +33,6 @@ def _manifest_row(
         "figure_name": figure_name,
         "source_experiments": ";".join(source_experiments),
         "output_png": _path_text(paths, "png"),
-        "output_pdf": _path_text(paths, "pdf"),
-        "output_svg": _path_text(paths, "svg"),
         "status": status,
         "warning": warning,
     }
@@ -58,10 +56,11 @@ def make_all_journal_figures(results_root: Path, output_dir: Path, language: str
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest_rows: list[dict[str, str]] = []
 
-    window_sources = [exp.name for exp in experiments if exp.input_steps in {8, 12, 24} and not exp.is_rolling]
-    _safe_call("figure_window_metrics", window_sources, manifest_rows, plot_window_metrics, experiments, output_dir, language=language)
-    _safe_call("figure_window_timeseries", window_sources, manifest_rows, plot_window_timeseries, experiments, output_dir, language=language)
-    _safe_call("figure_window_scatter", window_sources, manifest_rows, plot_window_scatter, experiments, output_dir, language=language)
+    window_experiments = list(select_window_experiments(experiments).values())
+    window_sources = [exp.name for exp in window_experiments]
+    _safe_call("figure_window_metrics", window_sources, manifest_rows, plot_window_metrics, window_experiments, output_dir, language=language)
+    _safe_call("figure_window_timeseries", window_sources, manifest_rows, plot_window_timeseries, window_experiments, output_dir, language=language)
+    _safe_call("figure_window_scatter", window_sources, manifest_rows, plot_window_scatter, window_experiments, output_dir, language=language)
 
     rolling_experiments = [exp for exp in experiments if "rolling_forecast" in exp.files]
     for experiment in rolling_experiments:

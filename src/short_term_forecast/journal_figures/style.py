@@ -20,7 +20,6 @@ import numpy as np
 
 
 DPI = 400
-OUTPUT_FORMATS = ("png", "pdf", "svg")
 
 MODEL_COLORS = {
     "observed": "black",
@@ -90,9 +89,6 @@ def setup_journal_style(font_size: float = 8.0, language: str = "en") -> None:
             "figure.facecolor": "white",
             "axes.facecolor": "white",
             "savefig.facecolor": "white",
-            "pdf.fonttype": 42,
-            "ps.fonttype": 42,
-            "svg.fonttype": "none",
         }
     )
     if language == "zh":
@@ -180,19 +176,13 @@ def add_bar_labels(ax: plt.Axes, values: Iterable[float], fmt: str = "{:.2f}") -
 
 
 def save_figure(fig: plt.Figure, output_dir: Path, figure_name: str) -> dict[str, Path]:
-    """Save one figure as PNG/PDF/SVG and return paths by extension."""
+    """Save one figure as a high-resolution PNG and return the path."""
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    paths: dict[str, Path] = {}
-    for extension in OUTPUT_FORMATS:
-        path = output_dir / f"{figure_name}.{extension}"
-        save_kwargs = {"bbox_inches": "tight"}
-        if extension == "png":
-            save_kwargs["dpi"] = DPI
-        fig.savefig(path, **save_kwargs)
-        paths[extension] = path
-    return paths
+    path = output_dir / f"{figure_name}.png"
+    fig.savefig(path, dpi=DPI, bbox_inches="tight")
+    return {"png": path}
 
 
 def close_figure(fig: plt.Figure) -> None:
@@ -207,4 +197,3 @@ def ensure_writable_output_dir(path: Path) -> Path:
 
 def command_exists(command: str) -> bool:
     return shutil.which(command) is not None
-

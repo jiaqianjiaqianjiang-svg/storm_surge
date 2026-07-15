@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from . import config
 from . import io_utils
 from .style import (
     add_bar_labels,
@@ -25,6 +26,31 @@ from .style import (
 WINDOWS = (8, 12, 24)
 
 
+def validation_sample_count(experiment: io_utils.ExperimentResult) -> int | None:
+    """Return validation sample count from metrics, falling back to prediction CSV length."""
+
+    for key in ("n_val", "val_size", "validation_samples", "n_validation"):
+        value = experiment.metrics.get(key)
+        if value is None:
+            continue
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            continue
+    frame = io_utils.load_predictions_for_experiment(experiment)
+    return int(len(frame)) if frame is not None else None
+
+
+def is_valid_window_experiment(experiment: io_utils.ExperimentResult) -> bool:
+    """Filter out small debug/test runs from formal window-comparison figures."""
+
+    n_val = validation_sample_count(experiment)
+    if n_val is not None and n_val < config.MIN_VALIDATION_SAMPLES:
+        print(f"Skipped experiment:\n{experiment.name}\nReason:\nvalidation sample number too small (n_val={n_val})")
+        return False
+    return True
+
+
 def select_window_experiments(experiments: list[io_utils.ExperimentResult]) -> dict[int, io_utils.ExperimentResult]:
     """Pick one one-step experiment for each supported input window."""
 
@@ -34,6 +60,8 @@ def select_window_experiments(experiments: list[io_utils.ExperimentResult]) -> d
             continue
         window = experiment.input_steps
         if window not in WINDOWS:
+            continue
+        if not is_valid_window_experiment(experiment):
             continue
         if window not in selected:
             selected[window] = experiment
@@ -209,4 +237,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

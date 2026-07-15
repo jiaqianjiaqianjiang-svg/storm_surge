@@ -24,15 +24,15 @@ python -m src.short_term_forecast.journal_figures.plot_rolling_forecast ^
 
 ## 输出格式
 
-每张图同时保存：
+当前版本默认只保存：
 
 ```text
 PNG, 400 dpi
-PDF
-SVG
 ```
 
 保存时使用 `bbox_inches="tight"`。所有 storm surge 图统一显示为 `cm`。
+
+这个设置适合当前实验分析和组会汇报阶段，避免反复生成 PDF/SVG 导致目录过乱。后续论文投稿阶段如需要矢量格式，可再在 `style.py` 中重新开启 PDF/SVG 输出。
 
 ## 目录识别规则
 
@@ -86,9 +86,30 @@ persistence / persistence_prediction / persistence_forecast / baseline
 
 脚本会判断 storm surge 数值是否像以 `m` 保存。如果 95% 绝对值明显小于等于 5，会按米处理并乘以 100 转成厘米。已经是厘米的结果不会再转换。
 
+## 测试实验过滤
+
+输入窗口比较图会自动过滤样本量不足的测试实验，避免异常调试结果进入论文图件。默认阈值在：
+
+```text
+src/short_term_forecast/journal_figures/config.py
+```
+
+```python
+MIN_VALIDATION_SAMPLES = 500
+```
+
+对于窗口比较实验，如果 `metrics.json` 中的 `n_val`、`val_size`、`validation_samples` 或 `n_validation` 小于该阈值，脚本会跳过该实验并输出类似日志：
+
+```text
+Skipped experiment:
+ERA5_1985_1985_t8_h1
+Reason:
+validation sample number too small (n_val=72)
+```
+
 ## 图的科学含义
 
-`figure_window_metrics`：比较 t=8h、t=12h、t=24h 一步预测窗口对 Pearson r、RMSE、MAE、RRMSE 的影响。
+`figure_window_metrics`：比较有效输入窗口实验对 Pearson r、RMSE、MAE、RRMSE 的影响。样本量不足的调试实验会被自动过滤。
 
 `figure_window_timeseries`：在共同验证时间段内比较 observed 和不同输入窗口的预测序列。
 
@@ -116,8 +137,6 @@ figure_manifest.csv
 figure_name
 source_experiments
 output_png
-output_pdf
-output_svg
 status
 warning
 ```
@@ -136,6 +155,7 @@ src/short_term_forecast/journal_figures/style.py
 
 ```python
 DPI = 400
+MIN_VALIDATION_SAMPLES = 500
 MODEL_COLORS = {...}
 setup_journal_style(font_size=8.0)
 ```
@@ -153,4 +173,3 @@ transformer: brown
 ```
 
 脚本只使用 matplotlib，不使用 seaborn，也不会使用 rainbow/jet 色带。
-
