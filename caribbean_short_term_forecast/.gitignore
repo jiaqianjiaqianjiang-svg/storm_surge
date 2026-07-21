@@ -1,0 +1,24 @@
+# Runtime artifacts and local data must never be committed.
+outputs/**
+models/**
+figures/**
+logs/**
+cache/**
+!outputs/.gitkeep
+!models/.gitkeep
+!figures/.gitkeep
+!logs/.gitkeep
+data/
+*.nc
+*.grib
+*.grb
+*.idx
+*.zip
+*.7z
+*.npy
+*.npz
+*.csv
+*.pth
+*.pt
+__pycache__/
+*.py[cod]

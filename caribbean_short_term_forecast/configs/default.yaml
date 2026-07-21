@@ -1,0 +1,16 @@
+data_root: "F:/data"
+input_steps: 24
+forecast_horizon: 1
+forecast_steps: 12
+frequency: "1h"
+grid_size: 40
+region_size_degrees: 10.0
+variables: [U10, V10, MSL]
+train_ratio: 0.8
+seed: 42
+batch_size: 16
+epochs: 50
+learning_rate: 0.001
+optimizer: adam
+early_stopping_patience: 8
+plot_dpi: 400

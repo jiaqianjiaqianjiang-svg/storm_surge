@@ -1,0 +1,73 @@
+stations:
+  prickly_bay:
+    station_id: prickly_bay
+    station_name: Prickly Bay
+    source: PSMSL/NOC
+    latitude: null
+    longitude: null
+    start_time: "2011-01-01 00:00:00"
+    end_time: "2018-12-31 23:00:00"
+    timezone: UTC
+    water_level_unit: m
+    file_path: null
+    era5_path: null
+  calliaqua:
+    station_id: calliaqua
+    station_name: Calliaqua
+    source: PSMSL/NOC
+    latitude: null
+    longitude: null
+    start_time: null
+    end_time: null
+    timezone: null
+    water_level_unit: null
+    file_path: null
+    era5_path: null
+  ganters_bay:
+    station_id: ganters_bay
+    station_name: Ganter's Bay
+    source: PSMSL/NOC
+    latitude: null
+    longitude: null
+    start_time: null
+    end_time: null
+    timezone: null
+    water_level_unit: null
+    file_path: null
+    era5_path: null
+  san_juan:
+    station_id: san_juan
+    station_name: San Juan
+    source: GESLA 4.0
+    latitude: null
+    longitude: null
+    start_time: null
+    end_time: null
+    timezone: UTC
+    water_level_unit: m
+    file_path: null
+    era5_path: null
+  charlotte_amalie:
+    station_id: charlotte_amalie
+    station_name: Charlotte Amalie
+    source: GESLA 4.0
+    latitude: null
+    longitude: null
+    start_time: null
+    end_time: null
+    timezone: UTC
+    water_level_unit: m
+    file_path: null
+    era5_path: null
+  cristobal:
+    station_id: cristobal
+    station_name: Cristobal
+    source: GESLA 4.0
+    latitude: null
+    longitude: null
+    start_time: null
+    end_time: null
+    timezone: UTC
+    water_level_unit: m
+    file_path: null
+    era5_path: null
