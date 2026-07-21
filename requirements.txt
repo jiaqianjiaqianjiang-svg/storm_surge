@@ -12,3 +12,4 @@ eccodes
 jupyter
 ipykernel
 torch
+cdsapi>=0.7.7

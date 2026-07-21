@@ -1,14 +1,19 @@
 """厦门站 Xiamen 预处理命令行入口。
 
 示例：
-python src/preprocess_xiamen.py --start-year 1985 --end-year 1985
-python src/preprocess_xiamen.py --all-years
+python src/paper_reconstruction/preprocess_xiamen.py --start-year 1985 --end-year 1985
+python src/paper_reconstruction/preprocess_xiamen.py --all-years
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
+
+SRC_ROOT = Path(__file__).resolve().parents[1]
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
 
 def configure_console_encoding() -> None:

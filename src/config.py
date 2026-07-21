@@ -77,6 +77,8 @@ INPUT_CHANNELS = STEPS_PER_SAMPLE * len(VARIABLE_ORDER)
 # =========================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = PROJECT_ROOT
+DATA_ROOT = REPO_ROOT / "data"
 OUTPUT_ROOT = PROJECT_ROOT / "outputs"
 XIAMEN_OUTPUT_DIR = OUTPUT_ROOT / "xiamen"
 
@@ -95,3 +97,44 @@ SEA_LEVEL_ABS_LIMIT = 10_000.0
 # MAD 异常检测阈值。阈值较大，目标是只去掉明显离群坏点。
 OBS_MAD_THRESHOLD = 15.0
 SURGE_MAD_THRESHOLD = 15.0
+
+
+# =========================
+# 7. 短时预报配置
+# =========================
+
+# 短时预报固定使用 ERA5 小时级数据；原论文复现部分仍使用上面的 ERA20C 配置。
+FORECAST_DATA_SOURCE = "ERA5"
+FORECAST_INPUT_STEPS = 24
+FORECAST_HORIZON = 1
+FORECAST_FREQUENCY = "hourly"
+
+# 短时预报使用前 t 个时刻的 U10/V10/SLP 和前 t 个 storm surge 历史值。
+# ERA5 文件中的海平面气压变量名通常是 msl，这里对外统一称为 slp，
+# 读取时仍会自动识别 msl/slp/sp/var151。
+VARIABLES = ["u10", "v10", "slp"]
+
+# ERA5 目录在实验室电脑上可能有多个版本，代码会按顺序检查并打印实际使用路径。
+ERA5_DIR = Path(r"F:\ERA5")
+ERA5_ALL_DIR = Path(r"F:\ERA5-ALL")
+ERA5_NEW_DIR = Path(r"F:\ERA5-NEW")
+
+# 仓库内小样例路径，仅用于没有 F 盘数据时的流程验收。真实实验优先使用上面的 F 盘路径。
+LOCAL_GESLA_DIR = DATA_ROOT / "xiamen_GESLA"
+LOCAL_SITE_FILE = LOCAL_GESLA_DIR / "xiamen-376a-chn-uhslc"
+
+FORECAST_OUTPUT_ROOT = OUTPUT_ROOT / "short_term_forecast" / "xiamen"
+FORECAST_MODEL_ROOT = PROJECT_ROOT / "models" / "short_term_forecast" / "xiamen"
+FORECAST_FIGURE_ROOT = PROJECT_ROOT / "figures" / "short_term_forecast" / "xiamen"
+
+ERA_VARIABLE_CANDIDATES = {
+    "u10": ("u10", "10u", "u", "var165"),
+    "v10": ("v10", "10v", "v", "var166"),
+    "slp": ("msl", "slp", "sp", "var151"),
+}
+
+ERA_FILE_HINTS = {
+    "u10": ("u10", "10u", "165"),
+    "v10": ("v10", "10v", "166"),
+    "slp": ("slp", "msl", "151"),
+}

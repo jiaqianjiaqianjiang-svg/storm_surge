@@ -94,6 +94,22 @@ python -m src.short_term_forecast.journal_figures.make_all_journal_figures ^
 
 详细说明见 `JOURNAL_FIGURES_README.md`。
 
+## 加勒比区域扩展
+
+加勒比站点数据清单与 ERA5 下载说明见：
+
+```text
+CARIBBEAN_DATA_GUIDE.md
+```
+
+ERA5 小时级气象强迫下载脚本：
+
+```bash
+python scripts/download_era5_caribbean.py --station pric --start-year 2011 --end-year 2018 --output-root F:\ERA5-NEW
+```
+
+脚本会按站点、年份和变量下载 10 m U/V 风与平均海平面气压，并裁剪站点周围 10°×10° 区域。使用前需要配置 CDS API token，并安装 `cdsapi>=0.7.7`。
+
 ## 不提交到 GitHub
 
 `.gitignore` 已排除：
@@ -124,4 +140,3 @@ final_code_snapshot/
 *.rar
 *.7z
 ```
-

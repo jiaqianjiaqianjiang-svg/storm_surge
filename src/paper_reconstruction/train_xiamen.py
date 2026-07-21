@@ -4,8 +4,8 @@
 并对验证集进行 5-model averaging ensemble。
 
 示例：
-python src/train_xiamen.py --epochs 100 --batch-size 32 --lr 0.001
-python src/train_xiamen.py --epochs 2 --batch-size 16
+python src/paper_reconstruction/train_xiamen.py --epochs 100 --batch-size 32 --lr 0.001
+python src/paper_reconstruction/train_xiamen.py --epochs 2 --batch-size 16
 """
 
 from __future__ import annotations
@@ -15,6 +15,10 @@ import json
 import random
 import sys
 from pathlib import Path
+
+SRC_ROOT = Path(__file__).resolve().parents[1]
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
 import numpy as np
 import pandas as pd
