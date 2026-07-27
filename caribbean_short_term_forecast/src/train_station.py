@@ -15,14 +15,14 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 try:
-    from .dataset_builder import build_datasets
+    from .dataset_builder import build_datasets, build_year_datasets
     from .evaluate import calculate_metrics
-    from .forecast_model import CaribbeanSurgeCNN
+    from .forecast_model import MODEL_TYPES, create_model
     from .plotting import observed_vs_predicted, validation_scatter
 except ImportError:
-    from dataset_builder import build_datasets
+    from dataset_builder import build_datasets, build_year_datasets
     from evaluate import calculate_metrics
-    from forecast_model import CaribbeanSurgeCNN
+    from forecast_model import MODEL_TYPES, create_model
     from plotting import observed_vs_predicted, validation_scatter
 
 
@@ -34,6 +34,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--station", default="prickly_bay")
     parser.add_argument("--start-year", type=int, default=2011)
     parser.add_argument("--end-year", type=int, default=2018)
+    parser.add_argument("--split-mode", choices=["ratio", "years"], default="ratio")
+    parser.add_argument("--train-start-year", type=int, default=2011)
+    parser.add_argument("--train-end-year", type=int, default=2016)
+    parser.add_argument("--validation-year", type=int, default=2017)
+    parser.add_argument("--test-year", type=int, default=2018)
     parser.add_argument("--input-steps", type=int, default=24)
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=16)
@@ -41,6 +46,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--optimizer", choices=["adam", "sgd"], default="adam")
     parser.add_argument("--patience", type=int, default=8)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--model-type", choices=sorted(MODEL_TYPES), default="dual")
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--dataset-path", type=Path)
     parser.add_argument("--output-dir", type=Path)
@@ -84,17 +90,33 @@ def load_prepared(path: Path, start_year: int, end_year: int) -> tuple[np.ndarra
 def main() -> None:
     args = parse_args(); set_seed(args.seed)
     dataset_path = args.dataset_path or MODULE_ROOT / "outputs" / "processed" / args.station / "aligned_dataset"
-    output = args.output_dir or MODULE_ROOT / "models" / args.station
+    output = args.output_dir or MODULE_ROOT / "models" / args.station / args.model_type
     output.mkdir(parents=True, exist_ok=True)
-    atmosphere, surge, times = load_prepared(dataset_path, args.start_year, args.end_year)
+    if args.split_mode == "years" and not args.smoke_test:
+        load_start, load_end = args.train_start_year, args.test_year
+    else:
+        load_start, load_end = args.start_year, args.end_year
+    atmosphere, surge, times = load_prepared(dataset_path, load_start, load_end)
     if args.smoke_test:
         limit = min(len(times), max(args.input_steps + 16, 64)); atmosphere, surge, times = atmosphere[:limit], surge[:limit], times[:limit]
         args.epochs = min(args.epochs, 2)
-    train_set, validation_set, dataset_report = build_datasets(atmosphere, surge, times, args.input_steps)
+    if args.split_mode == "years" and not args.smoke_test:
+        train_set, validation_set, test_set, dataset_report = build_year_datasets(
+            atmosphere, surge, times, args.input_steps,
+            args.train_start_year, args.train_end_year,
+            args.validation_year, args.test_year,
+        )
+    else:
+        train_set, validation_set, dataset_report = build_datasets(
+            atmosphere, surge, times, args.input_steps
+        )
+        dataset_report["split_mode"] = "ratio"
+        test_set = None
     train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True)
     validation_loader = DataLoader(validation_set, batch_size=args.batch_size)
+    test_loader = DataLoader(test_set, batch_size=args.batch_size) if test_set else None
     variables = ("U10", "V10", "MSL")
-    model = CaribbeanSurgeCNN(args.input_steps, variables, atmosphere.shape[-1])
+    model = create_model(args.model_type, args.input_steps, variables, atmosphere.shape[-1])
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu"); model.to(device)
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr) if args.optimizer == "adam" else torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
@@ -121,6 +143,7 @@ def main() -> None:
                 **model.architecture_config(), "model_state_dict": model.state_dict(),
                 "scalers": dataset_report["scalers"], "station_id": args.station,
                 "training_time_range": dataset_report["train_time_range"],
+                "dataset_split": dataset_report,
                 "training_config": config,
             }
             torch.save(checkpoint, checkpoint_path)
@@ -130,21 +153,39 @@ def main() -> None:
                 print(f"Early stopping at epoch {epoch}"); break
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     model.load_state_dict(checkpoint["model_state_dict"]); model.eval()
-    scaled_predictions, scaled_observed = [], []
-    with torch.no_grad():
-        for weather, surge_history, target in validation_loader:
-            scaled_predictions.extend(model(weather.to(device), surge_history.to(device)).cpu().numpy())
-            scaled_observed.extend(target.numpy())
     scale = dataset_report["scalers"]["surge"]["scale"][0]; mean = dataset_report["scalers"]["surge"]["mean"][0]
-    predicted = np.asarray(scaled_predictions) * scale + mean; observed = np.asarray(scaled_observed) * scale + mean
-    dates = validation_set.times[validation_set.targets]
-    prediction_frame = pd.DataFrame({"datetime": dates, "observed_m": observed, "predicted_m": predicted})
-    metrics = calculate_metrics(observed, predicted)
-    prediction_frame.to_csv(output / "val_predictions.csv", index=False); pd.DataFrame(history).to_csv(output / "loss_history.csv", index=False)
+
+    def evaluate_split(loader: DataLoader, dataset: object, name: str) -> dict[str, float | int]:
+        scaled_predictions, scaled_observed = [], []
+        with torch.no_grad():
+            for weather, surge_history, target in loader:
+                predictions = model(weather.to(device), surge_history.to(device))
+                scaled_predictions.extend(predictions.cpu().numpy())
+                scaled_observed.extend(target.numpy())
+        predicted = np.asarray(scaled_predictions) * scale + mean
+        observed = np.asarray(scaled_observed) * scale + mean
+        dates = dataset.times[dataset.targets]
+        frame = pd.DataFrame(
+            {"datetime": dates, "observed_m": observed, "predicted_m": predicted}
+        )
+        frame.to_csv(output / f"{name}_predictions.csv", index=False)
+        observed_vs_predicted(
+            dates, observed, predicted, output / f"{name}_observed_vs_predicted.png"
+        )
+        validation_scatter(
+            observed, predicted, output / f"{name}_scatter.png"
+        )
+        return calculate_metrics(observed, predicted)
+
+    metrics = {"validation": evaluate_split(validation_loader, validation_set, "validation")}
+    if test_loader is not None and test_set is not None:
+        metrics["test"] = evaluate_split(test_loader, test_set, "test")
+    pd.DataFrame(history).to_csv(output / "loss_history.csv", index=False)
     (output / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     (output / "training_config.json").write_text(json.dumps(config, indent=2, default=str), encoding="utf-8")
-    observed_vs_predicted(dates, observed, predicted, output / "observed_vs_predicted.png")
-    validation_scatter(observed, predicted, output / "validation_scatter.png")
+    (output / "dataset_report.json").write_text(
+        json.dumps(dataset_report, indent=2), encoding="utf-8"
+    )
     print(json.dumps(metrics, indent=2)); print(f"Best checkpoint: {checkpoint_path}")
 
 

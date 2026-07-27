@@ -22,6 +22,11 @@ STATIONS = {
 }
 
 
+def should_ignore(path: Path) -> bool:
+    """Ignore macOS AppleDouble sidecars wherever they occur."""
+    return any(part.startswith("._") for part in path.parts)
+
+
 def classify(path: Path) -> tuple[str, str, str]:
     text = str(path).lower()
     suffix = path.suffix.lower()
@@ -60,7 +65,7 @@ def build_inventory(data_root: str | Path, output_path: str | Path = DEFAULT_OUT
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
         for path in root.rglob("*"):
-            if not path.is_file():
+            if should_ignore(path) or not path.is_file():
                 continue
             try:
                 stat = path.stat()

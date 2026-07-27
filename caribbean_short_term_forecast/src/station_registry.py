@@ -17,15 +17,18 @@ DEFAULT_REGISTRY = MODULE_ROOT / "configs" / "stations.yaml"
 class Station:
     station_id: str
     station_name: str
-    source: str | None
-    latitude: float | None
-    longitude: float | None
-    start_time: str | None
-    end_time: str | None
-    timezone: str | None
-    water_level_unit: str | None
-    file_path: str | None
-    era5_path: str | None
+    source: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    start_time: str | None = None
+    end_time: str | None = None
+    timezone: str | None = None
+    water_level_unit: str | None = None
+    water_level_datum: str | None = None
+    file_path: str | None = None
+    sensor_files: dict[str, str] | None = None
+    selected_sensor: str | None = None
+    era5_path: str | None = None
 
     def require(self, *fields: str) -> "Station":
         missing = [name for name in fields if getattr(self, name, None) in (None, "")]

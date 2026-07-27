@@ -18,15 +18,26 @@ def _normalise_flags(series: pd.Series) -> pd.Series:
     return series.astype("string").str.strip().str.lower()
 
 
-def _sensor_score(group: pd.DataFrame) -> tuple[float, int]:
+def _sensor_metrics(group: pd.DataFrame) -> dict[str, float | int | str]:
     valid = group.dropna(subset=["datetime", "water_level"]).sort_values("datetime")
     if valid.empty:
-        return (0.0, 0)
+        return {"score": 0.0, "valid_records": 0}
     span_hours = max(1.0, (valid.datetime.iloc[-1] - valid.datetime.iloc[0]).total_seconds() / 3600 + 1)
     completeness = min(1.0, len(valid) / span_hours)
     gaps = valid.datetime.diff().dt.total_seconds().div(3600)
     continuity = float((gaps.dropna() <= 1.5).mean()) if len(valid) > 1 else 1.0
-    return (0.7 * completeness + 0.3 * continuity, len(valid))
+    return {
+        "score": round(0.7 * completeness + 0.3 * continuity, 6),
+        "valid_records": len(valid),
+        "start": valid.datetime.iloc[0].isoformat(),
+        "end": valid.datetime.iloc[-1].isoformat(),
+        "completeness": round(completeness, 8),
+        "hourly_continuity": round(continuity, 8),
+        "non_hourly_gaps": int((gaps.dropna() > 1.5).sum()),
+        "minimum_m": round(float(valid.water_level.min()), 6),
+        "maximum_m": round(float(valid.water_level.max()), 6),
+        "median_m": round(float(valid.water_level.median()), 6),
+    }
 
 
 def quality_control(
@@ -60,10 +71,9 @@ def quality_control(
     if work.empty:
         raise ValueError("No valid tide-gauge records remain after quality control")
 
-    channel_stats: dict[str, dict[str, float | int]] = {}
+    channel_stats: dict[str, dict[str, float | int | str]] = {}
     for sensor, group in work.groupby("sensor", dropna=False):
-        score, count = _sensor_score(group)
-        channel_stats[str(sensor)] = {"score": round(score, 6), "valid_records": count}
+        channel_stats[str(sensor)] = _sensor_metrics(group)
     selected_sensor = max(channel_stats, key=lambda name: (channel_stats[name]["score"], channel_stats[name]["valid_records"]))
     clean = work.loc[work.sensor.astype(str) == selected_sensor].sort_values("datetime").reset_index(drop=True)
     expected = max(1, int((clean.datetime.iloc[-1] - clean.datetime.iloc[0]).total_seconds() // 3600) + 1)

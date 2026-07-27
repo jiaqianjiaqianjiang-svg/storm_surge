@@ -18,17 +18,17 @@
 python caribbean_short_term_forecast\src\inspect_data.py --data-root "F:\data"
 ```
 
-清单写入 `outputs/data_inventory.csv`，只读取文件路径、名称、后缀与大小，不载入大文件。它会标记可能的 GESLA metadata/单站记录、PSMSL/NOC 文件以及 ERA5 NetCDF/GRIB。若外部盘未连接，会明确提示：`Data root F:\data is not available. Please connect the external drive.`
+清单写入 `outputs/data_inventory.csv`，只读取文件路径、名称、后缀与大小，不载入大文件，并自动忽略 macOS 生成的全部 `._*` 伴生文件。它会标记可能的 GESLA metadata/单站记录、PSMSL/NOC 文件以及 ERA5 NetCDF/GRIB。若外部盘未连接，会明确提示：`Data root F:\data is not available. Please connect the external drive.`
 
-根据清单把核实后的站点信息填入 `configs/stations.yaml`。Prickly Bay 的经纬度和实际路径目前故意为 `null`；UTide、ERA5 或训练需要这些值时会停止并说明缺少哪一项，不会静默采用猜测值。默认超参数位于 `configs/default.yaml`。
+Prickly Bay 已按 PSMSL/NOC 权威资料配置为 `12.005°N, 61.765°W`、UTC、米；三个传感器路径和 `Regional_Union` ERA5 路径均已写入 `configs/stations.yaml`。三个传感器的高度零点不保证一致，因此正式流程不跨通道拼接水位，当前固定采用 QC 得分最高的雷达通道 `rad`。默认超参数位于 `configs/default.yaml`。
 
 建议的数据盘结构（实际子目录名称可以不同）：
 
 ```text
 F:\data\
-├── GESLA\...                 # metadata、单站记录
-├── PSMSL_NOC\...             # Prickly Bay 等站
-└── ERA5\prickly_bay\...      # 按年或按月 NetCDF/GRIB
+├── GESLA4_0\...                              # metadata、单站记录
+├── caribbean_tide_gauges\pric\pric_*.csv    # Prickly Bay 三通道与潮汐估计
+└── ERA5-Caribbean\Regional_Union\...         # 按变量、按年份 NetCDF
 ```
 
 所有 `outputs/`、`models/`、`figures/`、`logs/`、缓存、CSV、NetCDF/GRIB、数组和权重均被模块 `.gitignore` 排除。不要把真实数据复制到仓库。
@@ -38,9 +38,17 @@ F:\data\
 1. `tide_gauge_loader.py` 统一读取 GESLA 4.0、PSMSL/NOC，以及常见 CSV、TXT、空格或制表符分隔文件。输出统一字段；通过配置把 m/cm/mm 换算成 m。
 2. `tide_quality_control.py` 解析时间、排序、去重、过滤缺测与质量标志，并用宽松的绝对物理范围检查异常。多传感器不会直接混合，而是分别计算完整性和连续性，选择得分最高的通道，生成 QC JSON。
 3. `tide_processing.py` 对 QC 后的观测用站点真实纬度重新运行 UTide。PSMSL/NOC 自带 tide estimate 只可辅助比较，不作为正式标签。有效数据不足 30 天时停止，不生成伪结果。输出 `cleaned_water_level.csv`、`tide_reconstruction.csv`、`hourly_storm_surge.csv` 和诊断 JSON。
-4. `era5_loader.py` 识别 U10、V10、MSL 及坐标别名，统一 0—360/-180—180 经度和纬度方向，裁剪站点周围约 10°×10°。原裁剪恰好 40×40 时不插值，否则重采样到 40×40。每次只打开一个年/月文件，可按期迭代并缓存到 `outputs/cache/`。
+4. `era5_loader.py` 识别 U10、V10、MSL 及坐标别名，支持同一年三个变量分文件保存；`prepare_station.py` 先按文件名年份分组，再核对三份文件的时间和网格完全一致后合并。随后统一 0—360/-180—180 经度和纬度方向，裁剪站点周围约 10°×10°，并重采样到 40×40。每次只加载一个年份，避免把多年数据同时放入内存。
 5. `time_alignment.py` 将两类时间显式转换到 UTC 并按整点精确求交，报告覆盖范围、缺失时次和连续段。时区未核实时不会把 naive 时间擅自当成 UTC。
 6. `dataset_builder.py` 按需生成 `(72,40,40)`、`(24,)` 和标量标签，跳过含断点或 NaN 的窗口。数据按时间前 80%/后 20% 划分，scaler 只在训练段拟合。大规模实跑应保存分年/月缓存，并用 Dataset、memmap 或分块文件按需读取。
+
+完整数据生成后可先执行审计：
+
+```powershell
+python caribbean_short_term_forecast\src\audit_prepared_dataset.py
+```
+
+审计会检查数组形状、磁盘大小、逐小时连续性、三变量有限值比例与物理范围、MSL是否仍为Pa，以及整体和逐年的有效24小时样本数。
 
 完成站点配置后执行完整预处理：
 
@@ -60,17 +68,27 @@ time.npy        (time,), datetime64，逐小时 UTC
 
 ## 训练
 
-完整训练：
+正式年份切分训练（推荐）：
 
 ```powershell
-python caribbean_short_term_forecast\src\train_station.py --station prickly_bay --start-year 2011 --end-year 2018 --input-steps 24 --epochs 50 --batch-size 16 --lr 0.001
+python caribbean_short_term_forecast\src\train_station.py --station prickly_bay --split-mode years --train-start-year 2011 --train-end-year 2016 --validation-year 2017 --test-year 2018 --model-type dual --input-steps 24 --epochs 50 --batch-size 16 --lr 0.001
 ```
+
+该模式按目标时刻年份切分，2011—2016用于训练、2017用于验证和early stopping、2018只用于最终测试；三组共用仅在训练年份拟合的scaler。`--model-type` 支持完整双分支 `dual`、只用ERA5的 `era5_cnn` 和只用历史增水的 `surge_mlp`。
 
 先做 2011 单年 smoke test：
 
 ```powershell
 python caribbean_short_term_forecast\src\train_station.py --station prickly_bay --start-year 2011 --end-year 2011 --input-steps 24 --epochs 2 --batch-size 8 --smoke-test
 ```
+
+在正式CNN训练前运行简单基线：
+
+```powershell
+python caribbean_short_term_forecast\src\evaluate_baselines.py --station prickly_bay --train-start-year 2011 --train-end-year 2016 --validation-year 2017 --test-year 2018
+```
+
+基线包括零增水、上一小时持久性，以及岭回归。岭回归输入为过去24小时每个ERA5变量的空间均值、标准差、最小值、最大值，加过去24小时增水，共312个特征。
 
 训练优先使用 CUDA，默认 Adam + MSELoss，也可传 `--optimizer sgd`。固定随机种子并启用 early stopping。checkpoint 保存模型名、输入步数、变量、网格、scaler、站点和训练时段。输出包括 `best_model.pth`、`metrics.json`、`val_predictions.csv`、`loss_history.csv`、`training_config.json` 以及两张验证 PNG。指标和图中的增水统一为 cm：Pearson r、RMSE、MAE、Bias、RRMSE。
 

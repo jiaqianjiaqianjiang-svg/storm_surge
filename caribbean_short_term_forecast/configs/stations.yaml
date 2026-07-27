@@ -3,14 +3,20 @@ stations:
     station_id: prickly_bay
     station_name: Prickly Bay
     source: PSMSL/NOC
-    latitude: null
-    longitude: null
-    start_time: "2011-01-01 00:00:00"
-    end_time: "2018-12-31 23:00:00"
+    latitude: 12.005
+    longitude: -61.765
+    start_time: "2011-05-14 01:00:00"
+    end_time: "2018-10-04 23:00:00"
     timezone: UTC
     water_level_unit: m
-    file_path: null
-    era5_path: null
+    water_level_datum: sensor-specific local datum; not a common RLR datum
+    file_path: "F:/data/caribbean_tide_gauges/pric/pric_rad.csv"
+    sensor_files:
+      rad: "F:/data/caribbean_tide_gauges/pric/pric_rad.csv"
+      prs: "F:/data/caribbean_tide_gauges/pric/pric_prs.csv"
+      bub: "F:/data/caribbean_tide_gauges/pric/pric_bub.csv"
+    selected_sensor: rad
+    era5_path: "F:/data/ERA5-Caribbean/Regional_Union"
   calliaqua:
     station_id: calliaqua
     station_name: Calliaqua

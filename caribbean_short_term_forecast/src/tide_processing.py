@@ -59,24 +59,31 @@ def separate_tide(
         time_days, observed, lat=float(latitude), epoch=epoch, constit=CONSTITUENTS,
         method="ols", trend=False, conf_int="none", verbose=False,
     )
+    hourly_time = pd.date_range(frame.datetime.iloc[0], frame.datetime.iloc[-1], freq="1h")
+    hourly_naive = hourly_time.tz_convert("UTC").tz_localize(None)
+    hourly_days = (hourly_naive - naive_utc.iloc[0]).total_seconds().to_numpy() / 86400.0
     predicted = reconstruct(
-        time_days, coef, epoch=epoch, constit=coef.name, verbose=False,
+        hourly_days, coef, epoch=epoch, constit=coef.name, verbose=False,
     ).h
+    observed_series = frame.set_index("datetime").water_level.reindex(hourly_time)
     result = pd.DataFrame(
         {
-            "datetime": frame.datetime.to_numpy(),
-            "observed_water_level_m": observed,
+            "datetime": hourly_time,
+            "observed_water_level_m": observed_series.to_numpy(dtype=float),
             "predicted_tide_m": np.asarray(predicted, dtype=float),
-            "storm_surge_m": observed - predicted,
-            "qc_valid": True,
         }
     )
+    result["storm_surge_m"] = result.observed_water_level_m - result.predicted_tide_m
+    result["qc_valid"] = result.observed_water_level_m.notna()
     diagnostic = {
         "latitude": float(latitude),
         "record_count": len(result),
+        "observed_record_count": int(result.qc_valid.sum()),
+        "missing_hourly_observation_count": int((~result.qc_valid).sum()),
         "time_range": [str(result.datetime.iloc[0]), str(result.datetime.iloc[-1])],
         "irregular_interval_count": irregular,
         "constituents": [str(name) for name in coef.name],
+        "used_supplied_tide_estimate": False,
         "auxiliary_tide_estimate_compared": bool(
             "tide_estimate" in frame and frame.tide_estimate.notna().any()
         ),

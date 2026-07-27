@@ -1,7 +1,11 @@
 import numpy as np
 import pandas as pd
 
-from caribbean_short_term_forecast.src.dataset_builder import build_datasets, valid_targets
+from caribbean_short_term_forecast.src.dataset_builder import (
+    build_datasets,
+    build_year_datasets,
+    valid_targets,
+)
 
 
 def test_scheme_b_shapes_and_temporal_split() -> None:
@@ -24,3 +28,27 @@ def test_missing_hour_skips_crossing_windows() -> None:
     targets, skipped = valid_targets(times, atmosphere, surge, input_steps=4)
     assert skipped["non_contiguous"] > 0
     assert targets
+
+
+def test_year_split_keeps_test_targets_independent() -> None:
+    times = pd.DatetimeIndex(
+        np.concatenate(
+            [
+                pd.date_range(f"{year}-01-01", periods=48, freq="h").values
+                for year in (2011, 2012, 2013, 2014)
+            ]
+        )
+    )
+    atmosphere = np.random.default_rng(11).normal(
+        size=(len(times), 3, 2, 2)
+    ).astype("float32")
+    surge = np.linspace(-0.2, 0.2, len(times), dtype="float32")
+    train, validation, test, report = build_year_datasets(
+        atmosphere, surge, times, input_steps=4,
+        train_start_year=2011, train_end_year=2012,
+        validation_year=2013, test_year=2014,
+    )
+    assert set(train.times[train.targets].year) == {2011, 2012}
+    assert set(validation.times[validation.targets].year) == {2013}
+    assert set(test.times[test.targets].year) == {2014}
+    assert report["test_samples"] == len(test)

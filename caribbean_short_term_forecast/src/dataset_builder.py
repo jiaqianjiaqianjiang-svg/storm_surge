@@ -36,9 +36,10 @@ def fit_scalers(
     atmosphere: np.ndarray | xr.DataArray,
     surge: np.ndarray,
     train_end: int,
+    train_start: int = 0,
 ) -> dict[str, Standardisation]:
-    if train_end <= 0:
-        raise ValueError("train_end must be positive")
+    if train_start < 0 or train_end <= train_start:
+        raise ValueError("Expected 0 <= train_start < train_end")
     if len(atmosphere.shape) != 4:
         raise ValueError("Atmosphere must have shape (time, variables, latitude, longitude)")
     variables = int(atmosphere.shape[1])
@@ -46,7 +47,7 @@ def fit_scalers(
     sums_squared = np.zeros(variables, dtype=np.float64)
     counts = np.zeros(variables, dtype=np.int64)
     # Chunked moments avoid materialising years of 40x40 fields at once.
-    for start in range(0, train_end, 168):
+    for start in range(train_start, train_end, 168):
         chunk = np.asarray(atmosphere[start : min(train_end, start + 168)], dtype=np.float64)
         finite = np.isfinite(chunk)
         safe = np.where(finite, chunk, 0.0)
@@ -60,7 +61,7 @@ def fit_scalers(
     mean = variable_mean.astype(np.float32).reshape(1, variables, 1, 1)
     scale = np.sqrt(variable_variance).astype(np.float32).reshape(1, variables, 1, 1)
     scale[~np.isfinite(scale) | (scale < 1e-8)] = 1.0
-    train_surge = np.asarray(surge[:train_end], dtype=np.float64)
+    train_surge = np.asarray(surge[train_start:train_end], dtype=np.float64)
     surge_mean = np.asarray([np.nanmean(train_surge)], dtype=np.float32)
     surge_scale = np.asarray([np.nanstd(train_surge)], dtype=np.float32)
     surge_scale[~np.isfinite(surge_scale) | (surge_scale < 1e-8)] = 1.0
@@ -158,3 +159,78 @@ def build_datasets(
         "scalers": {name: scaler.state_dict() for name, scaler in scalers.items()},
     }
     return train, validation, report
+
+
+def build_year_datasets(
+    atmosphere: np.ndarray | xr.DataArray,
+    surge: np.ndarray,
+    times: object,
+    input_steps: int = 24,
+    train_start_year: int = 2011,
+    train_end_year: int = 2016,
+    validation_year: int = 2017,
+    test_year: int = 2018,
+) -> tuple[SchemeBDataset, SchemeBDataset, SchemeBDataset, dict[str, Any]]:
+    """Build leakage-safe train/validation/test datasets by target year."""
+    if not train_start_year <= train_end_year < validation_year < test_year:
+        raise ValueError(
+            "Expected train_start_year <= train_end_year < validation_year < test_year"
+        )
+    index = pd.DatetimeIndex(pd.to_datetime(times))
+    targets, skipped = valid_targets(index, atmosphere, surge, input_steps)
+    train_targets = [
+        target for target in targets
+        if train_start_year <= index[target].year <= train_end_year
+    ]
+    validation_targets = [target for target in targets if index[target].year == validation_year]
+    test_targets = [target for target in targets if index[target].year == test_year]
+    empty = [
+        name for name, values in (
+            ("training", train_targets),
+            ("validation", validation_targets),
+            ("test", test_targets),
+        )
+        if not values
+    ]
+    if empty:
+        raise ValueError(f"No valid targets remain for split(s): {empty}")
+
+    training_positions = np.flatnonzero(
+        (index.year >= train_start_year) & (index.year <= train_end_year)
+    )
+    scalers = fit_scalers(
+        atmosphere,
+        np.asarray(surge),
+        int(training_positions[-1]) + 1,
+        int(training_positions[0]),
+    )
+    train = SchemeBDataset(atmosphere, surge, index, train_targets, input_steps, scalers)
+    validation = SchemeBDataset(
+        atmosphere, surge, index, validation_targets, input_steps, scalers
+    )
+    test = SchemeBDataset(atmosphere, surge, index, test_targets, input_steps, scalers)
+    report = {
+        "split_mode": "years",
+        "input_steps": input_steps,
+        "valid_samples": len(targets),
+        "train_years": [train_start_year, train_end_year],
+        "validation_year": validation_year,
+        "test_year": test_year,
+        "train_samples": len(train),
+        "validation_samples": len(validation),
+        "test_samples": len(test),
+        "skipped": skipped,
+        "train_time_range": [
+            str(index[train_targets[0]]), str(index[train_targets[-1]])
+        ],
+        "validation_time_range": [
+            str(index[validation_targets[0]]), str(index[validation_targets[-1]])
+        ],
+        "test_time_range": [
+            str(index[test_targets[0]]), str(index[test_targets[-1]])
+        ],
+        "scalers": {
+            name: scaler.state_dict() for name, scaler in scalers.items()
+        },
+    }
+    return train, validation, test, report
