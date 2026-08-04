@@ -114,6 +114,14 @@ E:\condaData\envs_dirs\mygpu\python.exe caribbean_short_term_forecast\src\rollin
 
 该实验使用已知未来 ERA5 再分析强迫，名称为“已知未来大气强迫条件下的历史滚动回算”，不能表述为业务预报。脚本硬性禁止加载2018数据；岭回归、surge_mlp和双分支模型均只回填自身预测值。
 
+建立连续未来24小时标签，并仅使用2017验证集比较直接多步线性基线：
+
+```powershell
+python caribbean_short_term_forecast\src\direct_multistep_baselines.py --station prickly_bay
+```
+
+正则系数使用2011—2015拟合、2016选择，再用2011—2016重拟合。脚本同时比较AR-Ridge、ERA5-Ridge、Combined-Ridge，以及过去ERA5和过去＋未来ERA5两种强迫设置；不读取2018直接多步结果。
+
 未来每个小时必须有 ERA5 强迫，历史 24 小时必须有已知增水。目标时段没有观测仍会输出预测，但跳过相应评价。输出 `rolling_forecast.csv`、`rolling_metrics.json`、`rolling_forecast.png`、`rolling_error.png` 和 `cumulative_error.png`。CSV 字段为 `datetime, lead_time, observed, predicted, error, absolute_error`。所有图片仅为 PNG，默认 400 dpi。
 
 ## 测试
