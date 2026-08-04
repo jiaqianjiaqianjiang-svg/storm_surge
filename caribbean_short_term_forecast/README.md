@@ -122,6 +122,14 @@ python caribbean_short_term_forecast\src\direct_multistep_baselines.py --station
 
 正则系数使用2011—2015拟合、2016选择，再用2011—2016重拟合。脚本同时比较AR-Ridge、ERA5-Ridge、Combined-Ridge，以及过去ERA5和过去＋未来ERA5两种强迫设置；不读取2018直接多步结果。
 
+使用GPU训练直接24小时XGBoost、MLP、GRU、Dual-CNN-Past和Dual-CNN-Future，并统一在2017比较：
+
+```powershell
+E:\condaData\envs_dirs\mygpu\python.exe caribbean_short_term_forecast\src\train_direct_multimodel.py --station prickly_bay --device cuda
+```
+
+XGBoost使用24个独立模型；其余网络一次输出连续24小时。所有模型共享相同起报时刻，重点评价1、3、6、12、24小时，脚本硬性禁止加载2018。
+
 未来每个小时必须有 ERA5 强迫，历史 24 小时必须有已知增水。目标时段没有观测仍会输出预测，但跳过相应评价。输出 `rolling_forecast.csv`、`rolling_metrics.json`、`rolling_forecast.png`、`rolling_error.png` 和 `cumulative_error.png`。CSV 字段为 `datetime, lead_time, observed, predicted, error, absolute_error`。所有图片仅为 PNG，默认 400 dpi。
 
 ## 测试
