@@ -130,6 +130,14 @@ E:\condaData\envs_dirs\mygpu\python.exe caribbean_short_term_forecast\src\train_
 
 XGBoost使用24个独立模型；其余网络一次输出连续24小时。所有模型共享相同起报时刻，重点评价1、3、6、12、24小时，脚本硬性禁止加载2018。
 
+训练一步XGBoost并在相同2017起报时刻统一比较Ridge、XGBoost和Dual-CNN的直接预测与滚动24小时预测：
+
+```powershell
+E:\condaData\envs_dirs\mygpu\python.exe caribbean_short_term_forecast\src\rolling_24_comparison.py --station prickly_bay --device cuda
+```
+
+滚动模型只回填自身预测增水，并逐时读取未来ERA5再分析真值；实验属于已知未来大气强迫历史回算。该入口不会修改旧滚动代码，也不会加载2018。
+
 未来每个小时必须有 ERA5 强迫，历史 24 小时必须有已知增水。目标时段没有观测仍会输出预测，但跳过相应评价。输出 `rolling_forecast.csv`、`rolling_metrics.json`、`rolling_forecast.png`、`rolling_error.png` 和 `cumulative_error.png`。CSV 字段为 `datetime, lead_time, observed, predicted, error, absolute_error`。所有图片仅为 PNG，默认 400 dpi。
 
 ## 测试
