@@ -51,3 +51,13 @@ def cumulative_error(frame: pd.DataFrame, path: str | Path, dpi: int = 400) -> P
     ax.plot(frame.lead_time, frame.absolute_error.fillna(0).cumsum() * 100, marker="o")
     ax.set(xlabel="Lead time (h)", ylabel="Cumulative absolute error (cm)"); ax.grid(alpha=0.25)
     return _save(fig, path, dpi)
+
+
+def loss_curve(history: pd.DataFrame, path: str | Path, dpi: int = 400) -> Path:
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    ax.plot(history.epoch, history.train_loss, label="Train loss")
+    ax.plot(history.epoch, history.validation_loss, label="Validation loss")
+    ax.set(xlabel="Epoch", ylabel="Scaled MSE loss")
+    ax.grid(alpha=0.25)
+    ax.legend()
+    return _save(fig, path, dpi)

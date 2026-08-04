@@ -106,6 +106,7 @@ class SchemeBDataset(Dataset):
         targets: list[int],
         input_steps: int = 24,
         scalers: dict[str, Standardisation] | None = None,
+        model_type: str = "dual",
     ) -> None:
         self.atmosphere = atmosphere
         self.surge = np.asarray(surge, dtype=np.float32)
@@ -113,20 +114,35 @@ class SchemeBDataset(Dataset):
         self.targets = list(targets)
         self.input_steps = int(input_steps)
         self.scalers = scalers
+        self.model_type = model_type
 
     def __len__(self) -> int:
         return len(self.targets)
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         target = self.targets[index]
-        atmosphere = np.asarray(self.atmosphere[target - self.input_steps : target], dtype=np.float32)
-        history = self.surge[target - self.input_steps : target].copy()
+        if self.model_type == "surge_mlp":
+            atmosphere = np.empty((0,), dtype=np.float32)
+        else:
+            atmosphere = np.asarray(
+                self.atmosphere[target - self.input_steps : target], dtype=np.float32
+            )
+        if self.model_type == "era5_cnn":
+            history = np.empty((0,), dtype=np.float32)
+        else:
+            history = self.surge[target - self.input_steps : target].copy()
         label = np.float32(self.surge[target])
         if self.scalers:
-            atmosphere = self.scalers["atmosphere"].transform(atmosphere)
-            history = self.scalers["surge"].transform(history)
+            if self.model_type != "surge_mlp":
+                atmosphere = self.scalers["atmosphere"].transform(atmosphere)
+            if self.model_type != "era5_cnn":
+                history = self.scalers["surge"].transform(history)
             label = np.float32(self.scalers["surge"].transform(np.asarray([label]))[0])
-        channels = atmosphere.reshape(-1, atmosphere.shape[-2], atmosphere.shape[-1])
+        channels = (
+            atmosphere.reshape(-1, atmosphere.shape[-2], atmosphere.shape[-1])
+            if self.model_type != "surge_mlp"
+            else atmosphere
+        )
         return torch.from_numpy(channels.copy()), torch.from_numpy(history.copy()), torch.tensor(label)
 
 
@@ -136,6 +152,7 @@ def build_datasets(
     times: object,
     input_steps: int = 24,
     train_ratio: float = 0.8,
+    model_type: str = "dual",
 ) -> tuple[SchemeBDataset, SchemeBDataset, dict[str, Any]]:
     if not 0.5 <= train_ratio < 1:
         raise ValueError("train_ratio must be in [0.5, 1)")
@@ -146,8 +163,12 @@ def build_datasets(
     train_targets, validation_targets = targets[:split], targets[split:]
     # The last training target is the latest observation used to fit either scaler.
     scalers = fit_scalers(atmosphere, np.asarray(surge), train_targets[-1] + 1)
-    train = SchemeBDataset(atmosphere, surge, times, train_targets, input_steps, scalers)
-    validation = SchemeBDataset(atmosphere, surge, times, validation_targets, input_steps, scalers)
+    train = SchemeBDataset(
+        atmosphere, surge, times, train_targets, input_steps, scalers, model_type
+    )
+    validation = SchemeBDataset(
+        atmosphere, surge, times, validation_targets, input_steps, scalers, model_type
+    )
     report = {
         "input_steps": input_steps,
         "valid_samples": len(targets),
@@ -170,6 +191,7 @@ def build_year_datasets(
     train_end_year: int = 2016,
     validation_year: int = 2017,
     test_year: int = 2018,
+    model_type: str = "dual",
 ) -> tuple[SchemeBDataset, SchemeBDataset, SchemeBDataset, dict[str, Any]]:
     """Build leakage-safe train/validation/test datasets by target year."""
     if not train_start_year <= train_end_year < validation_year < test_year:
@@ -204,11 +226,15 @@ def build_year_datasets(
         int(training_positions[-1]) + 1,
         int(training_positions[0]),
     )
-    train = SchemeBDataset(atmosphere, surge, index, train_targets, input_steps, scalers)
-    validation = SchemeBDataset(
-        atmosphere, surge, index, validation_targets, input_steps, scalers
+    train = SchemeBDataset(
+        atmosphere, surge, index, train_targets, input_steps, scalers, model_type
     )
-    test = SchemeBDataset(atmosphere, surge, index, test_targets, input_steps, scalers)
+    validation = SchemeBDataset(
+        atmosphere, surge, index, validation_targets, input_steps, scalers, model_type
+    )
+    test = SchemeBDataset(
+        atmosphere, surge, index, test_targets, input_steps, scalers, model_type
+    )
     report = {
         "split_mode": "years",
         "input_steps": input_steps,

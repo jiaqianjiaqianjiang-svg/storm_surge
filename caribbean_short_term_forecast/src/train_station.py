@@ -16,14 +16,14 @@ from torch.utils.data import DataLoader
 
 try:
     from .dataset_builder import build_datasets, build_year_datasets
-    from .evaluate import calculate_metrics
+    from .evaluate import calculate_detailed_metrics
     from .forecast_model import MODEL_TYPES, create_model
-    from .plotting import observed_vs_predicted, validation_scatter
+    from .plotting import loss_curve, observed_vs_predicted, validation_scatter
 except ImportError:
     from dataset_builder import build_datasets, build_year_datasets
-    from evaluate import calculate_metrics
+    from evaluate import calculate_detailed_metrics
     from forecast_model import MODEL_TYPES, create_model
-    from plotting import observed_vs_predicted, validation_scatter
+    from plotting import loss_curve, observed_vs_predicted, validation_scatter
 
 
 MODULE_ROOT = Path(__file__).resolve().parents[1]
@@ -49,6 +49,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model-type", choices=sorted(MODEL_TYPES), default="dual")
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--dataset-path", type=Path)
+    parser.add_argument("--baseline-dir", type=Path)
     parser.add_argument("--output-dir", type=Path)
     return parser.parse_args()
 
@@ -105,10 +106,11 @@ def main() -> None:
             atmosphere, surge, times, args.input_steps,
             args.train_start_year, args.train_end_year,
             args.validation_year, args.test_year,
+            args.model_type,
         )
     else:
         train_set, validation_set, dataset_report = build_datasets(
-            atmosphere, surge, times, args.input_steps
+            atmosphere, surge, times, args.input_steps, model_type=args.model_type
         )
         dataset_report["split_mode"] = "ratio"
         test_set = None
@@ -123,6 +125,7 @@ def main() -> None:
     best_loss, stale, history = float("inf"), 0, []
     checkpoint_path = output / "best_model.pth"
     config = vars(args).copy(); config.update({"dataset_path": str(dataset_path), "output_dir": str(output), "device": str(device)})
+    surge_scale_m = float(dataset_report["scalers"]["surge"]["scale"][0])
     for epoch in range(1, args.epochs + 1):
         model.train(); total, count = 0.0, 0
         for weather, surge_history, target in train_loader:
@@ -135,8 +138,17 @@ def main() -> None:
                 target = target.to(device); predictions = model(weather.to(device), surge_history.to(device))
                 val_total += criterion(predictions, target).item() * len(target); val_count += len(target)
         train_loss, val_loss = total / count, val_total / val_count
-        history.append({"epoch": epoch, "train_loss": train_loss, "validation_loss": val_loss})
-        print(f"epoch={epoch} train_loss={train_loss:.6f} validation_loss={val_loss:.6f}")
+        history.append({
+            "epoch": epoch,
+            "train_loss": train_loss,
+            "validation_loss": val_loss,
+            "train_rmse_cm": float(np.sqrt(train_loss) * surge_scale_m * 100),
+            "validation_rmse_cm": float(np.sqrt(val_loss) * surge_scale_m * 100),
+        })
+        print(
+            f"epoch={epoch} train_loss={train_loss:.6f} validation_loss={val_loss:.6f} "
+            f"validation_rmse_cm={history[-1]['validation_rmse_cm']:.4f}"
+        )
         if val_loss < best_loss - 1e-8:
             best_loss, stale = val_loss, 0
             checkpoint = {
@@ -144,6 +156,8 @@ def main() -> None:
                 "scalers": dataset_report["scalers"], "station_id": args.station,
                 "training_time_range": dataset_report["train_time_range"],
                 "dataset_split": dataset_report,
+                "selection_metric": "minimum 2017 validation scaled MSE (equivalent to RMSE)",
+                "best_validation_rmse_cm": history[-1]["validation_rmse_cm"],
                 "training_config": config,
             }
             torch.save(checkpoint, checkpoint_path)
@@ -155,7 +169,9 @@ def main() -> None:
     model.load_state_dict(checkpoint["model_state_dict"]); model.eval()
     scale = dataset_report["scalers"]["surge"]["scale"][0]; mean = dataset_report["scalers"]["surge"]["mean"][0]
 
-    def evaluate_split(loader: DataLoader, dataset: object, name: str) -> dict[str, float | int]:
+    baseline_dir = args.baseline_dir or MODULE_ROOT / "models" / args.station / "baselines"
+
+    def evaluate_split(loader: DataLoader, dataset: object, name: str) -> dict[str, object]:
         scaled_predictions, scaled_observed = [], []
         with torch.no_grad():
             for weather, surge_history, target in loader:
@@ -175,12 +191,28 @@ def main() -> None:
         validation_scatter(
             observed, predicted, output / f"{name}_scatter.png"
         )
-        return calculate_metrics(observed, predicted)
+        reference_path = baseline_dir / f"{name}_baseline_predictions.csv"
+        ridge_reference = None
+        if reference_path.is_file():
+            reference = pd.read_csv(reference_path)
+            reference["datetime"] = pd.to_datetime(reference.datetime)
+            reference = reference.set_index("datetime").reindex(pd.DatetimeIndex(dates))
+            if reference.ridge_m.isna().any():
+                if args.split_mode == "years" and not args.smoke_test:
+                    raise ValueError(
+                        f"Ridge reference {reference_path} does not cover all {name} timestamps"
+                    )
+            else:
+                ridge_reference = reference.ridge_m.to_numpy(dtype=float)
+        return calculate_detailed_metrics(
+            observed, predicted, dates, ridge_reference
+        )
 
     metrics = {"validation": evaluate_split(validation_loader, validation_set, "validation")}
     if test_loader is not None and test_set is not None:
         metrics["test"] = evaluate_split(test_loader, test_set, "test")
     pd.DataFrame(history).to_csv(output / "loss_history.csv", index=False)
+    loss_curve(pd.DataFrame(history), output / "loss_curve.png")
     (output / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     (output / "training_config.json").write_text(json.dumps(config, indent=2, default=str), encoding="utf-8")
     (output / "dataset_report.json").write_text(

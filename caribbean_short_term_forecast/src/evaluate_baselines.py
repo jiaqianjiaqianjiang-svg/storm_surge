@@ -16,11 +16,11 @@ from sklearn.preprocessing import StandardScaler
 
 try:
     from .dataset_builder import build_year_datasets
-    from .evaluate import calculate_metrics
+    from .evaluate import calculate_detailed_metrics
     from .train_station import load_prepared
 except ImportError:
     from dataset_builder import build_year_datasets
-    from evaluate import calculate_metrics
+    from evaluate import calculate_detailed_metrics
     from train_station import load_prepared
 
 
@@ -118,7 +118,12 @@ def evaluate_baselines(
             "ridge": ridge.predict(features[split_name]).astype(np.float32),
         }
         report["metrics"][split_name] = {
-            name: calculate_metrics(observed[split_name], values)
+            name: calculate_detailed_metrics(
+                observed[split_name],
+                values,
+                dataset.times[targets],
+                predictions["ridge"],
+            )
             for name, values in predictions.items()
         }
         frame = pd.DataFrame(

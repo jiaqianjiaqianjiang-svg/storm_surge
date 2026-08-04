@@ -90,13 +90,29 @@ python caribbean_short_term_forecast\src\evaluate_baselines.py --station prickly
 
 基线包括零增水、上一小时持久性，以及岭回归。岭回归输入为过去24小时每个ERA5变量的空间均值、标准差、最小值、最大值，加过去24小时增水，共312个特征。
 
-训练优先使用 CUDA，默认 Adam + MSELoss，也可传 `--optimizer sgd`。固定随机种子并启用 early stopping。checkpoint 保存模型名、输入步数、变量、网格、scaler、站点和训练时段。输出包括 `best_model.pth`、`metrics.json`、`val_predictions.csv`、`loss_history.csv`、`training_config.json` 以及两张验证 PNG。指标和图中的增水统一为 cm：Pearson r、RMSE、MAE、Bias、RRMSE。
+训练优先使用 CUDA，默认 Adam + MSELoss，也可传 `--optimizer sgd`。固定随机种子并启用 early stopping；正式年份切分只根据2017验证损失选择checkpoint，2018测试集不参与模型选择。checkpoint 保存模型名、输入步数、变量、网格、scaler、站点和训练时段。
+
+每个模型输出 `best_model.pth`、`metrics.json`、`dataset_report.json`、`loss_history.csv`、`loss_curve.png`、训练配置、验证/测试预测CSV、时间序列图和散点图。评价包括全部时段的Pearson r、R²、RMSE、MAE、Bias、RRMSE、相对岭回归技能评分，以及绝对增水Top 10%/5%、快速上涨、分离峰值幅度误差和峰值时间误差。
+
+完成三个seed-42模型后生成统一比较：
+
+```powershell
+python caribbean_short_term_forecast\src\summarize_first_round.py
+```
 
 ## 滚动预报
 
 ```powershell
 python caribbean_short_term_forecast\src\rolling_forecast.py --station prickly_bay --model-path "caribbean_short_term_forecast\models\prickly_bay\best_model.pth" --start-time "2018-01-01 00:00" --forecast-steps 12
 ```
+
+对已训练的 seed 42 模型执行严格限制在2017验证集内的共同起报、72小时递归诊断：
+
+```powershell
+E:\condaData\envs_dirs\mygpu\python.exe caribbean_short_term_forecast\src\rolling_diagnostics.py --station prickly_bay --device cuda --batch-size 256
+```
+
+该实验使用已知未来 ERA5 再分析强迫，名称为“已知未来大气强迫条件下的历史滚动回算”，不能表述为业务预报。脚本硬性禁止加载2018数据；岭回归、surge_mlp和双分支模型均只回填自身预测值。
 
 未来每个小时必须有 ERA5 强迫，历史 24 小时必须有已知增水。目标时段没有观测仍会输出预测，但跳过相应评价。输出 `rolling_forecast.csv`、`rolling_metrics.json`、`rolling_forecast.png`、`rolling_error.png` 和 `cumulative_error.png`。CSV 字段为 `datetime, lead_time, observed, predicted, error, absolute_error`。所有图片仅为 PNG，默认 400 dpi。
 

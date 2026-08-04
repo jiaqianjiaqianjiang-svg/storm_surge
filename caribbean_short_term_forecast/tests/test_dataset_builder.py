@@ -52,3 +52,16 @@ def test_year_split_keeps_test_targets_independent() -> None:
     assert set(validation.times[validation.targets].year) == {2013}
     assert set(test.times[test.targets].year) == {2014}
     assert report["test_samples"] == len(test)
+
+
+def test_ablation_dataset_skips_unused_large_input() -> None:
+    times = pd.date_range("2011-01-01", periods=12, freq="h")
+    atmosphere = np.ones((12, 3, 2, 2), dtype="float32")
+    surge = np.linspace(-0.1, 0.1, 12, dtype="float32")
+    train, _, _ = build_datasets(
+        atmosphere, surge, times, input_steps=4, train_ratio=0.8,
+        model_type="surge_mlp",
+    )
+    weather, history, _ = train[0]
+    assert weather.numel() == 0
+    assert tuple(history.shape) == (4,)
