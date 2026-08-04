@@ -1,7 +1,13 @@
 import numpy as np
 import torch
 
-from src.direct_forecast_models import DirectDualCNN, DirectGRU, DirectMLP, GridDirectDataset
+from src.direct_forecast_models import (
+    DirectDualCNN,
+    DirectGRU,
+    DirectMLP,
+    GridDirectDataset,
+    MatchedSurgeAblation,
+)
 
 
 def test_direct_model_output_shapes():
@@ -9,6 +15,7 @@ def test_direct_model_output_shapes():
     assert DirectGRU()(torch.zeros(2, 48, 14)).shape == (2, 24)
     assert DirectDualCNN(24)(torch.zeros(2, 72, 40, 40), torch.zeros(2, 24)).shape == (2, 24)
     assert DirectDualCNN(48)(torch.zeros(2, 144, 40, 40), torch.zeros(2, 24)).shape == (2, 24)
+    assert MatchedSurgeAblation()(torch.zeros(2, 24)).shape == (2, 24)
 
 
 def test_grid_dataset_past_and_future_boundaries():

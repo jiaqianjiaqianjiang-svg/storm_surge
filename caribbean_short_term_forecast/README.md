@@ -138,6 +138,14 @@ E:\condaData\envs_dirs\mygpu\python.exe caribbean_short_term_forecast\src\rollin
 
 滚动模型只回填自身预测增水，并逐时读取未来ERA5再分析真值；实验属于已知未来大气强迫历史回算。该入口不会修改旧滚动代码，也不会加载2018。
 
+对XGBoost和匹配结构CNN执行Surge-only、Past-ERA5、Future-ERA5最小消融：
+
+```powershell
+E:\condaData\envs_dirs\mygpu\python.exe caribbean_short_term_forecast\src\era5_ablation.py --station prickly_bay --device cuda
+```
+
+CNN-Surge保留Dual-CNN相同的增水分支和融合输出头，仅移除ERA5分支。三个信息版本共享相同起报时刻、训练年份、seed、普通MSE和早停标准；不加载2018。
+
 未来每个小时必须有 ERA5 强迫，历史 24 小时必须有已知增水。目标时段没有观测仍会输出预测，但跳过相应评价。输出 `rolling_forecast.csv`、`rolling_metrics.json`、`rolling_forecast.png`、`rolling_error.png` 和 `cumulative_error.png`。CSV 字段为 `datetime, lead_time, observed, predicted, error, absolute_error`。所有图片仅为 PNG，默认 400 dpi。
 
 ## 测试

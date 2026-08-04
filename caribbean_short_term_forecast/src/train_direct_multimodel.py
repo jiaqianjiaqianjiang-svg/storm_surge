@@ -16,7 +16,6 @@ import torch
 from sklearn.preprocessing import StandardScaler
 from torch import nn
 from torch.utils.data import DataLoader
-from xgboost import XGBRegressor
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -535,6 +534,8 @@ def main() -> None:
     if args.reuse_checkpoints and tree_path.is_file():
         xgboost_models = joblib.load(tree_path)
     else:
+        from xgboost import XGBRegressor
+
         print("fitting 24 direct XGBoost models", flush=True)
         xgboost_models = []
         for lead in range(24):

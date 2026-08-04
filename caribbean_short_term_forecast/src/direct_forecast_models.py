@@ -133,6 +133,42 @@ class DirectDualCNN(nn.Module):
         }
 
 
+class MatchedSurgeAblation(nn.Module):
+    """Surge-only ablation retaining the Dual-CNN surge branch and fusion head."""
+
+    def __init__(self, input_steps: int = 24, output_steps: int = 24) -> None:
+        super().__init__()
+        self.input_steps = int(input_steps)
+        self.output_steps = int(output_steps)
+        self.surge_branch = nn.Sequential(
+            nn.Linear(self.input_steps, 64), nn.ReLU(inplace=True),
+            nn.Linear(64, 32), nn.ReLU(inplace=True),
+        )
+        self.fusion = nn.Sequential(
+            nn.Linear(160, 96), nn.ReLU(inplace=True), nn.Dropout(0.2),
+            nn.Linear(96, self.output_steps),
+        )
+
+    def forward(self, surge_history: torch.Tensor) -> torch.Tensor:
+        history = self.surge_branch(surge_history)
+        # The 128 weather features are explicitly absent, while the fusion
+        # head remains dimensionally identical to DirectDualCNN.
+        absent_weather = torch.zeros(
+            (len(surge_history), 128),
+            dtype=history.dtype,
+            device=history.device,
+        )
+        return self.fusion(torch.cat([absent_weather, history], dim=1))
+
+    def architecture_config(self) -> dict[str, Any]:
+        return {
+            "model_name": type(self).__name__,
+            "input_steps": self.input_steps,
+            "output_steps": self.output_steps,
+            "ablation": "Dual-CNN surge branch and fusion head with ERA5 branch removed",
+        }
+
+
 class ArrayDirectDataset(Dataset):
     def __init__(self, features: np.ndarray, labels: np.ndarray) -> None:
         self.features = np.asarray(features, dtype=np.float32)
