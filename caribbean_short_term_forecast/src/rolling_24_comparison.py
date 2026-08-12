@@ -154,7 +154,7 @@ def recursive_dual_predictions(
                 )
             histories[:, :-1] = histories[:, 1:]
             histories[:, -1] = predictions[:, lead - 1]
-            print(f"dual rolling lead={lead}/24 complete", flush=True)
+            print(f"dual rolling lead={lead}/{output_steps} complete", flush=True)
     return predictions
 
 

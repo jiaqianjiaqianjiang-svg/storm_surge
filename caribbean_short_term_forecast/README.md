@@ -146,6 +146,22 @@ E:\condaData\envs_dirs\mygpu\python.exe caribbean_short_term_forecast\src\era5_a
 
 CNN-Surge保留Dual-CNN相同的增水分支和融合输出头，仅移除ERA5分支。三个信息版本共享相同起报时刻、训练年份、seed、普通MSE和早停标准；不加载2018。
 
+统一比较Persistence、Ridge、XGBoost和Dual-CNN的72小时递归误差：
+
+```powershell
+E:\condaData\envs_dirs\mygpu\python.exe caribbean_short_term_forecast\src\rolling_72_comparison.py --station prickly_bay --device cuda
+```
+
+四个模型严格使用相同2017起报时刻，输出1、3、6、12、24、48和72小时的RMSE、MAE、Bias、Pearson r、Top 5%及快速上涨指标；脚本不加载2018。
+
+从一步Dual-CNN初始化，冻结ERA5空间编码器并进行6步递归微调：
+
+```powershell
+E:\condaData\envs_dirs\mygpu\python.exe caribbean_short_term_forecast\src\train_rollout_dual.py --station prickly_bay --device cuda --rollout-steps 6
+```
+
+训练时连续展开6步，对所有步共同计算MSE，并使用从真值历史逐渐过渡到模型预测历史的scheduled sampling。该版本仅用2017递归损失选checkpoint；训练完成后可向`rolling_72_comparison.py`传入`--rollout-checkpoint`，在相同起报时刻与原模型比较。
+
 未来每个小时必须有 ERA5 强迫，历史 24 小时必须有已知增水。目标时段没有观测仍会输出预测，但跳过相应评价。输出 `rolling_forecast.csv`、`rolling_metrics.json`、`rolling_forecast.png`、`rolling_error.png` 和 `cumulative_error.png`。CSV 字段为 `datetime, lead_time, observed, predicted, error, absolute_error`。所有图片仅为 PNG，默认 400 dpi。
 
 ## 测试
