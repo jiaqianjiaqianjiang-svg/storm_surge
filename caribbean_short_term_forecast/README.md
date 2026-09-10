@@ -164,6 +164,21 @@ E:\condaData\envs_dirs\mygpu\python.exe caribbean_short_term_forecast\src\train_
 
 未来每个小时必须有 ERA5 强迫，历史 24 小时必须有已知增水。目标时段没有观测仍会输出预测，但跳过相应评价。输出 `rolling_forecast.csv`、`rolling_metrics.json`、`rolling_forecast.png`、`rolling_error.png` 和 `cumulative_error.png`。CSV 字段为 `datetime, lead_time, observed, predicted, error, absolute_error`。所有图片仅为 PNG，默认 400 dpi。
 
+## 物理特征与Ridge残差融合（仅2017开发）
+
+第一版只使用现有U10、V10、MSL和历史增水，不实现缺少区域流速、水深及空间增水标签的浅水方程PINN。依次运行：
+
+```powershell
+python caribbean_short_term_forecast\src\build_physics_features.py --station prickly_bay
+python caribbean_short_term_forecast\src\train_physics_baselines.py --station prickly_bay --xgb-device cuda
+python caribbean_short_term_forecast\src\train_residual_physics_xgb.py --station prickly_bay --xgb-device cuda
+python caribbean_short_term_forecast\src\evaluate_physics_fusion.py --station prickly_bay
+```
+
+物理缓存包含反气压计、Garratt风应力、站点气压梯度、多尺度空间统计、过去累计强迫和仅覆盖`t+1...t+h`的未来累计强迫。残差XGBoost使用2014—2016逐年扩展窗口产生的Ridge时间外残差，年份边界保留72小时隔离带；修正系数只在2017选择。所有入口硬性拒绝2018。结果写入新的`outputs/experiments/prickly_bay/physics_fusion_v1/`，不会覆盖原直接预测、消融或滚动实验。
+
+`physics.onshore_bearing_deg_clockwise_from_north`定义为从外海指向海湾内部的方向。未人工核实时必须保持`null`；程序仍会生成非方向性风压特征，但不会静默假定岸向方向。
+
 ## 测试
 
 ```powershell

@@ -29,6 +29,7 @@ class Station:
     sensor_files: dict[str, str] | None = None
     selected_sensor: str | None = None
     era5_path: str | None = None
+    physics: dict[str, Any] | None = None
 
     def require(self, *fields: str) -> "Station":
         missing = [name for name in fields if getattr(self, name, None) in (None, "")]

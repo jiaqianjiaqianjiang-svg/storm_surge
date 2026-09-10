@@ -10,13 +10,29 @@ stations:
     timezone: UTC
     water_level_unit: m
     water_level_datum: sensor-specific local datum; not a common RLR datum
-    file_path: "F:/data/caribbean_tide_gauges/pric/pric_rad.csv"
+    file_path: "F:/data/01_caribbean_case/tide_gauge_observations/pric/pric_rad.csv"
     sensor_files:
-      rad: "F:/data/caribbean_tide_gauges/pric/pric_rad.csv"
-      prs: "F:/data/caribbean_tide_gauges/pric/pric_prs.csv"
-      bub: "F:/data/caribbean_tide_gauges/pric/pric_bub.csv"
+      rad: "F:/data/01_caribbean_case/tide_gauge_observations/pric/pric_rad.csv"
+      prs: "F:/data/01_caribbean_case/tide_gauge_observations/pric/pric_prs.csv"
+      bub: "F:/data/01_caribbean_case/tide_gauge_observations/pric/pric_bub.csv"
     selected_sensor: rad
-    era5_path: "F:/data/ERA5-Caribbean/Regional_Union"
+    era5_path: "F:/data/01_caribbean_case/era5_forcing/Regional_Union"
+    physics:
+      rho_air: 1.225
+      rho_water: 1025.0
+      gravity: 9.80665
+      drag_law: garratt
+      pressure_reference: training_climatology
+      # Direction from offshore into the bay, clockwise from north.
+      # It must remain null until verified from a chart or coastline dataset.
+      onshore_bearing_deg_clockwise_from_north: null
+      spatial_regions:
+        station: 0.0
+        local_1deg: 1.0
+        near_3deg: 3.0
+        broad_5deg: 5.0
+      past_accumulation_hours: [3, 6, 12, 24]
+      forecast_leads: [1, 3, 6, 12, 24]
   calliaqua:
     station_id: calliaqua
     station_name: Calliaqua

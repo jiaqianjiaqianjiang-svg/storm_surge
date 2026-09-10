@@ -11,3 +11,4 @@ cfgrib
 eccodes
 torch
 PyYAML>=6
+pytest>=9
