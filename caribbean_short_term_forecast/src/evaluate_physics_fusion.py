@@ -274,6 +274,9 @@ def evaluate(
     ]]
     feature_metadata = json.loads((output / "physics_feature_metadata.json").read_text(encoding="utf-8"))
     residual_selection = pd.read_csv(output / "residual_alpha_selection.csv")
+    residual_gain = float(
+        (residual_selection.ridge_validation_rmse_cm - residual_selection.validation_rmse_cm).max()
+    )
     ridge_12 = float(primary.loc["combined_ridge", 12])
     ridge_24 = float(primary.loc["combined_ridge", 24])
     xgb_12 = float(primary.loc["physics_xgboost", 12])
@@ -336,7 +339,7 @@ but their 95% intervals cross zero. This is a promising 2017 signal, not a stati
 {markdown_table(residual_selection.round(4))}
 
 The residual model selects alpha=0 at 1 h and 24 h and only 0.25 at 3/6/12 h.
-Its maximum RMSE improvement is about 0.006 cm, so this residual formulation has no practical advantage.
+Its maximum RMSE improvement is only {residual_gain:.3f} cm, so this residual formulation has no practical advantage.
 
 ## 8. Conclusions and next step
 
