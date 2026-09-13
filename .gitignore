@@ -1,6 +1,8 @@
 .idea/
 __pycache__/
 .ipynb_checkpoints/
+.pytest_cache/
+pytest-cache-files-*/
 *.pyc
 *.pyo
 *.pyd
@@ -10,10 +12,13 @@ Thumbs.db
 .claude/*.log
 
 # 真实数据与大文件：不要提交到 GitHub
-data/
-outputs/
-models/
-figures/
+data/**
+outputs/**
+models/**
+figures/**
+!**/outputs/.gitkeep
+!**/models/.gitkeep
+!**/figures/.gitkeep
 *.grb
 *.grib
 *.idx
@@ -37,3 +42,25 @@ figures/
 venv/
 env/
 *.egg-info/
+
+# Runtime crawler data stays outside this Git repository
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+*.bak
+*.backup
+*.log
+*.tmp
+
+tools/realtime_crawlers/output/
+**/zhejiang_water_data/
+**/debug/
+**/exports/
+*_结果.ipynb
+*_测试结果.ipynb
+*_长期运行结果.ipynb
+*_全省一轮结果.ipynb

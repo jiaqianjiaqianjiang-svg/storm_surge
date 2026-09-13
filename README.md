@@ -1,220 +1,57 @@
-# Storm Surge Xiamen CNN
+# Storm Surge 工作区索引
 
-本项目用于复现论文 **A dataset of storm surge reconstructions in the Western North Pacific using CNN** 中厦门站 `Xiamen` 的数据预处理、CNN 训练与验证流程。
+本仓库按“研究项目、参考资料、工具、报告、归档”分类。整理过程只移动和归类文件，没有删除原有内容。
 
-仓库只提交代码、配置、README、requirements 和示例 notebook。真实数据、预处理输出、模型权重和图片结果都不提交到 GitHub。
+## 主要项目
 
-## 数据路径
+### 1. 厦门论文复现
 
-默认路径集中在 `src/config.py`：
+位置：`projects/xiamen_reconstruction/`
 
-```python
-ERA20C_DIR = r"F:\ERA20C"
-GESLA_DIR = r"F:\GESLA\GESLA3"
-SITE_FILE = r"F:\GESLA\GESLA3\xiamen-376a-chn-uhslc"
-SITE_LAT = 24.45
-SITE_LON = 118.067
-```
+- `git_baseline/`：原来位于仓库根目录、已经被 Git 跟踪的 Python 复现版本。
+- `later_working_materials/`：原来的 `code_my/`，包括后续整理版代码和实际运行过的 notebook。
 
-ERA-20C 目录结构需要是：
+两个版本存在实质差异，目前均保留。选择最终版本前不要互相覆盖。
 
-```text
-F:\ERA20C\10U\*.grb
-F:\ERA20C\10V\*.grb
-F:\ERA20C\SLP\*.grb
-```
+### 2. 厦门短时预测
 
-## 环境
+位置：`projects/xiamen_short_term/short_term_forecast/`
 
-建议在实验室远程电脑的 conda 环境 `jjq` 中运行：
+包含小时风暴增水 Ridge 滚动基线、汇报图片、CSV 和阶段总结。从 `projects/xiamen_short_term/` 目录运行原 README 中的命令。
 
-```bash
-conda activate jjq
-pip install -r requirements.txt
-```
+### 3. 加勒比短时预测
 
-训练阶段需要 PyTorch。如果你已经单独安装了 GPU 版 PyTorch，可以不用重复安装。
+位置：`projects/caribbean_forecast/caribbean_short_term_forecast/`
 
-## 1. 预处理
+当前主要站点为 Prickly Bay，包含数据预处理、模型训练、直接与滚动预测、ERA5 消融、物理特征实验、测试、模型和实验产物。从 `projects/caribbean_forecast/` 目录运行项目 README 中的命令。
 
-预处理入口：
+注意：`outputs/` 中约 1.3 GB 的处理数据和实验结果、`models/` 中的权重均不随普通 Git 提交保存，应单独备份。
 
-```bash
-python src/preprocess_xiamen.py --start-year 1985 --end-year 1985
-```
+## 参考资料
 
-完整年份：
+位置：`references/original_paper_code/`
 
-```bash
-python src/preprocess_xiamen.py --all-years
-```
+保存原论文代码压缩包、解压后的原始预处理 notebook 和模型训练 notebook。建议作为只读参考，不在这里继续开发。
 
-预处理流程：
+## 工具
 
-1. 读取厦门站 GESLA 文件，自动跳过 `#` 元数据并识别数据行。
-2. 清洗潮位数据，删除重复时间、缺测标记和明显坏值。
-3. 使用 UTide 做潮汐分离。
-4. 计算 `storm surge = observed sea level - predicted tide`。
-5. 按天取 `daily maximum storm surge` 作为标签 `y`。
-6. 读取 ERA-20C 的 U10、V10、SLP。
-7. 自动识别 GRIB 文件中的变量名。
-8. 提取厦门站周围 `10°×10°` 区域。
-9. 插值到 `40×40` 网格。
-10. 对 U10、V10、SLP 分别标准化。
-11. 对某一天 `D`，使用 `D-1` 和 `D` 两天共 16 个 3 小时时间片。
-12. 构建 CNN 输入 `X shape = (N, 48, 40, 40)`。
-13. 构建标签 `y shape = (N,)`。
-14. 按时间顺序划分：前 80% 训练集，后 20% 验证集。
+- `tools/realtime_crawlers/`：浙江潮位、台风、GFS 等实时数据采集工具。
+- `tools/zhejiang_export/zhejiang_excel_export_20260812/`：浙江台风数据检查和 Excel 导出脚本。
 
-预处理输出目录：
+## 报告
 
-```text
-outputs/xiamen/
-```
+位置：`reports/project_documents/`
 
-主要文件：
+保存原来的 Word、PowerPoint 项目资料。加勒比项目自己的技术报告仍留在对应项目目录内，便于与实验结果互相对应。
 
-```text
-X_train.npy        训练集 CNN 输入，shape=(N_train, 48, 40, 40)
-y_train.npy        标准化后的训练集标签，shape=(N_train,)
-X_val.npy          验证集 CNN 输入，shape=(N_val, 48, 40, 40)
-y_val.npy          标准化后的验证集标签，shape=(N_val,)
-dates_train.npy    训练集日期
-dates_val.npy      验证集日期
-y_original.npy     未标准化的全部标签
-dates_all.npy      全部样本日期
-y_scaler.json      标签标准化 mean/std
-daily_max_surge.csv 每日最大风暴潮
-cleaned_surge.csv  清洗和潮汐分离后的时间序列
-```
+## 归档
 
-## 2. CNN 训练
+位置：`archive/`
 
-快速测试：
+暂时不放入任何待删除文件。后续确认厦门最终版本后，可由维护者自行将旧版本移入此处或手动删除。
 
-```bash
-python src/train_xiamen.py --epochs 2 --batch-size 16
-```
+## 仓库级文件
 
-正式训练示例：
-
-```bash
-python src/train_xiamen.py --epochs 100 --batch-size 32 --lr 0.001
-```
-
-训练脚本会训练 5 个不同随机种子的模型：
-
-```text
-seed = 0, 1, 2, 3, 4
-```
-
-并对验证集做 5-model averaging ensemble。
-
-模型结构：
-
-```text
-Input: (48, 40, 40)
-Conv2d(5×5) -> BatchNorm -> ReLU -> MaxPool(2×2)
-Conv2d(5×5) -> BatchNorm -> ReLU -> MaxPool(2×2)
-Conv2d(5×5) -> BatchNorm -> ReLU -> MaxPool(2×2)
-Linear -> ReLU
-Linear -> ReLU
-Linear -> output
-```
-
-训练设置：
-
-```text
-loss: MSELoss
-optimizer: SGD
-```
-
-## 3. 训练输出
-
-模型保存到：
-
-```text
-models/xiamen/model_seed_0.pth
-models/xiamen/model_seed_1.pth
-models/xiamen/model_seed_2.pth
-models/xiamen/model_seed_3.pth
-models/xiamen/model_seed_4.pth
-```
-
-验证结果保存到：
-
-```text
-outputs/xiamen/validation_predictions.csv
-outputs/xiamen/metrics.json
-```
-
-图片保存到：
-
-```text
-figures/xiamen/loss_curve.png
-figures/xiamen/pred_vs_obs.png
-figures/xiamen/scatter.png
-```
-
-指标包括：
-
-```text
-Pearson correlation r
-RMSE
-MAE
-RRMSE
-```
-
-`validation_predictions.csv` 中包含：
-
-```text
-date
-observed
-pred_ensemble
-pred_seed_0
-pred_seed_1
-pred_seed_2
-pred_seed_3
-pred_seed_4
-```
-
-其中 `observed` 和预测值都已经从标准化值反变换回原始 storm surge 单位。
-
-## 4. 查看结果
-
-训练完成后，优先查看：
-
-```text
-outputs/xiamen/metrics.json
-figures/xiamen/pred_vs_obs.png
-figures/xiamen/scatter.png
-figures/xiamen/loss_curve.png
-```
-
-如果只想确认流程能跑通，先使用：
-
-```bash
-python src/train_xiamen.py --epochs 2 --batch-size 16
-```
-
-## 5. 不要提交真实数据和结果
-
-`.gitignore` 已排除：
-
-```text
-data/
-outputs/
-models/
-figures/
-*.grb
-*.grib
-*.nc
-*.npy
-*.csv
-*.pth
-*.pt
-*.png
-*.zip
-```
-
-请不要把 ERA20C、GESLA、`outputs/`、`models/`、`figures/` 或模型权重提交到 GitHub。
+- `.gitignore`：统一忽略数据、模型、图片、缓存和运行产物。
+- `.gitattributes`：Git 属性设置。
+- `skills-lock.json`：本地工具技能锁定信息。
