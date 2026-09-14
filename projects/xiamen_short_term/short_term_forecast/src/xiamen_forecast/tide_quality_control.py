@@ -10,7 +10,10 @@ import numpy as np
 import pandas as pd
 
 
-BAD_QC = {"1", "2", "3", "4", "9", "bad", "fail", "failed", "invalid"}
+# GESLA-3 contributor flags: 0=no QC, 1=correct, 2=interpolated,
+# 3=doubtful, 4=spike/wrong, and 5=missing. GESLA's separate use flag is
+# authoritative for whether a record is recommended for analysis.
+BAD_QC = {"3", "4", "5", "9", "bad", "fail", "failed", "invalid"}
 BAD_USE = {"0", "false", "f", "no", "n", "reject", "invalid"}
 
 

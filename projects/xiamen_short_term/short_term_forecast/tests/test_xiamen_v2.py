@@ -10,6 +10,7 @@ from src.xiamen_forecast.era5_loader import load_era5_files
 from src.xiamen_forecast.evaluate import calculate_detailed_metrics
 from src.xiamen_forecast.forecast_model import create_model
 from src.xiamen_forecast.prepare_xiamen import resolve_era5_files
+from src.xiamen_forecast.tide_quality_control import quality_control
 from src.xiamen_forecast.train_xiamen import load_prepared
 
 
@@ -26,6 +27,23 @@ def test_resolve_xiamen_split_variable_files(tmp_path: Path) -> None:
         "xiamen_v10_1970_1997.nc",
         "xiamen_slp_1970_1997.nc",
     ]
+
+
+def test_gesla_quality_flags_keep_correct_and_interpolated_records() -> None:
+    frame = pd.DataFrame(
+        {
+            "datetime": pd.date_range("1985-01-01", periods=5, freq="1h"),
+            "water_level": [1.0, 1.1, 1.2, 1.3, 1.4],
+            "qc_flag": ["0", "1", "2", "3", "1"],
+            "use_flag": ["1", "1", "1", "1", "0"],
+            "sensor": ["default"] * 5,
+        }
+    )
+
+    clean, report = quality_control(frame)
+
+    assert clean["water_level"].tolist() == [1.0, 1.1, 1.2]
+    assert report["removed_quality_flag_count"] == 2
 
 
 def test_year_split_is_temporal_and_scalers_use_training_data() -> None:
