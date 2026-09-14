@@ -36,10 +36,7 @@ def compute_peak_metrics(df: pd.DataFrame, percentile: float) -> tuple[pd.DataFr
             "peak_correlation": np.nan,
         }
     else:
-        if len(obs) >= 2 and np.nanstd(obs) > 0 and np.nanstd(pred) > 0:
-            corr = float(np.corrcoef(obs, pred)[0, 1])
-        else:
-            corr = float("nan")
+        corr = io_utils.safe_pearson_r(obs, pred)
         metrics = {
             "percentile": percentile,
             "threshold_cm": threshold,

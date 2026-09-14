@@ -7,6 +7,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from src.short_term_forecast.metric_utils import safe_pearson_r
+
 
 def calculate_metrics(observed_m: object, predicted_m: object) -> dict[str, float | int]:
     observed = np.asarray(observed_m, dtype=float)
@@ -22,7 +24,7 @@ def calculate_metrics(observed_m: object, predicted_m: object) -> dict[str, floa
     error_cm = (predicted - observed) * 100
     rmse_cm = float(np.sqrt(np.mean(error_cm**2)))
     denominator = float(np.mean(np.abs(observed * 100)))
-    correlation = float(np.corrcoef(observed, predicted)[0, 1]) if len(observed) > 1 and np.std(observed) > 0 and np.std(predicted) > 0 else float("nan")
+    correlation = safe_pearson_r(observed, predicted)
     total_variance = float(np.sum((observed - observed.mean()) ** 2))
     residual_variance = float(np.sum((predicted - observed) ** 2))
     return {

@@ -39,9 +39,7 @@ def _autocorrelation(values: np.ndarray, lag: int) -> float:
         return float("nan")
     x = values[:-lag]
     y = values[lag:]
-    if np.std(x) == 0 or np.std(y) == 0:
-        return float("nan")
-    return float(np.corrcoef(x, y)[0, 1])
+    return io_utils.safe_pearson_r(x, y)
 
 
 def residual_statistics(residual: np.ndarray) -> dict[str, float]:

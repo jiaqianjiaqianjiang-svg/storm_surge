@@ -21,6 +21,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from metric_utils import safe_pearson_r
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="分析 rolling forecast 随 lead time 的误差。")
@@ -38,10 +40,7 @@ def compute_metrics(group: pd.DataFrame) -> dict[str, float]:
     if len(observed) == 0:
         return {"rmse": np.nan, "mae": np.nan, "bias": np.nan, "pearson_r": np.nan, "n": 0}
     error = forecast - observed
-    if len(observed) >= 2 and np.std(observed) > 0 and np.std(forecast) > 0:
-        pearson_r = float(np.corrcoef(observed, forecast)[0, 1])
-    else:
-        pearson_r = float("nan")
+    pearson_r = safe_pearson_r(observed, forecast)
     return {
         "rmse": float(np.sqrt(np.mean(error**2))),
         "mae": float(np.mean(np.abs(error))),

@@ -8,6 +8,21 @@ import numpy as np
 import pandas as pd
 
 
+def _safe_pearson_r(left: np.ndarray, right: np.ndarray) -> float:
+    x = np.asarray(left, dtype=np.float64).reshape(-1)
+    y = np.asarray(right, dtype=np.float64).reshape(-1)
+    valid = np.isfinite(x) & np.isfinite(y)
+    x, y = x[valid], y[valid]
+    if x.size < 2:
+        return float("nan")
+    x = x - float(np.mean(x))
+    y = y - float(np.mean(y))
+    denominator = float(np.sqrt(np.sum(x * x) * np.sum(y * y)))
+    if not np.isfinite(denominator) or denominator <= 0:
+        return float("nan")
+    return float(np.clip(np.sum(x * y) / denominator, -1.0, 1.0))
+
+
 def calculate_metrics(observed_m: object, predicted_m: object) -> dict[str, float | int]:
     observed = np.asarray(observed_m, dtype=float)
     predicted = np.asarray(predicted_m, dtype=float)
@@ -22,7 +37,7 @@ def calculate_metrics(observed_m: object, predicted_m: object) -> dict[str, floa
     error_cm = (predicted - observed) * 100
     rmse_cm = float(np.sqrt(np.mean(error_cm**2)))
     denominator = float(np.mean(np.abs(observed * 100)))
-    correlation = float(np.corrcoef(observed, predicted)[0, 1]) if len(observed) > 1 and np.std(observed) > 0 and np.std(predicted) > 0 else float("nan")
+    correlation = _safe_pearson_r(observed, predicted)
     total_variance = float(np.sum((observed - observed.mean()) ** 2))
     residual_variance = float(np.sum((predicted - observed) ** 2))
     return {

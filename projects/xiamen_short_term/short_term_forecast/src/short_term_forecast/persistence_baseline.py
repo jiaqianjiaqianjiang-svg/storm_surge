@@ -27,6 +27,7 @@ import pandas as pd
 
 import config
 from forecast_dataset import frequency_to_timedelta, load_surge_series
+from metric_utils import safe_pearson_r
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,10 +46,7 @@ def compute_metrics(observed: np.ndarray, forecast: np.ndarray) -> dict[str, flo
     if len(observed) == 0:
         return {"pearson_r": float("nan"), "rmse": float("nan"), "mae": float("nan"), "bias": float("nan"), "n": 0}
     error = forecast - observed
-    if len(observed) >= 2 and np.std(observed) > 0 and np.std(forecast) > 0:
-        pearson_r = float(np.corrcoef(observed, forecast)[0, 1])
-    else:
-        pearson_r = float("nan")
+    pearson_r = safe_pearson_r(observed, forecast)
     return {
         "pearson_r": pearson_r,
         "rmse": float(np.sqrt(np.mean(error**2))),

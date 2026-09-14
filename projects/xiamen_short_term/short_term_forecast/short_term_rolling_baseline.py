@@ -14,6 +14,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from src.short_term_forecast.metric_utils import safe_pearson_r
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.preprocessing import StandardScaler
@@ -178,7 +179,7 @@ def recursive_predictions(
 
 
 def metrics(observed: np.ndarray, predicted: np.ndarray) -> dict[str, float]:
-    corr = float(np.corrcoef(observed, predicted)[0, 1]) if len(observed) > 1 else float("nan")
+    corr = safe_pearson_r(observed, predicted)
     return {
         "rmse_m": float(np.sqrt(mean_squared_error(observed, predicted))),
         "mae_m": float(mean_absolute_error(observed, predicted)),

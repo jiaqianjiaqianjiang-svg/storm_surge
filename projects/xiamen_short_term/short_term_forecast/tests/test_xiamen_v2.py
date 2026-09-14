@@ -82,6 +82,22 @@ def test_detailed_metrics_include_extreme_and_peak_sections() -> None:
     assert metrics["peak_events"]["event_count"] > 0
 
 
+def test_metrics_do_not_call_numpy_corrcoef(monkeypatch) -> None:
+    from src.short_term_forecast.journal_figures.io_utils import (
+        compute_metrics_from_predictions,
+    )
+
+    def aborting_corrcoef(*args, **kwargs):
+        raise AssertionError("np.corrcoef must not be used on the Windows MKL path")
+
+    monkeypatch.setattr(np, "corrcoef", aborting_corrcoef)
+    frame = pd.DataFrame(
+        {"observed": [1.0, 2.0, 3.0], "predicted": [1.1, 2.1, 3.1]}
+    )
+    metrics = compute_metrics_from_predictions(frame)
+    assert metrics["pearson_r"] == pytest.approx(1.0)
+
+
 def test_era5_loader_is_python39_compatible(monkeypatch, tmp_path: Path) -> None:
     import xarray as xr
     from src.xiamen_forecast import era5_loader

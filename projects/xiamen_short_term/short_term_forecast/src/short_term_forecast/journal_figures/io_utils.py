@@ -12,6 +12,8 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
+from ..metric_utils import safe_pearson_r
+
 
 KNOWN_RESULT_FILES = {
     "metrics": "metrics.json",
@@ -271,10 +273,7 @@ def compute_metrics_from_predictions(df: pd.DataFrame) -> dict[str, float]:
     mae = float(np.mean(np.abs(error)))
     denom = float(np.sqrt(np.mean(obs**2)))
     rrmse = float(rmse / denom * 100.0) if denom > 0 else float("nan")
-    if len(obs) >= 2 and np.nanstd(obs) > 0 and np.nanstd(pred) > 0:
-        pearson_r = float(np.corrcoef(obs, pred)[0, 1])
-    else:
-        pearson_r = float("nan")
+    pearson_r = safe_pearson_r(obs, pred)
     return {"pearson_r": pearson_r, "rmse": rmse, "mae": mae, "rrmse": rrmse, "n": int(len(obs))}
 
 
