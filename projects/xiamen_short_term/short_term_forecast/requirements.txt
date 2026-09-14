@@ -1,0 +1,15 @@
+numpy
+pandas
+matplotlib
+scipy
+scikit-learn
+tqdm
+xarray
+netCDF4
+utide
+cfgrib
+eccodes
+jupyter
+ipykernel
+torch
+cdsapi>=0.7.7

@@ -17,7 +17,7 @@
 
 位置：`projects/xiamen_short_term/short_term_forecast/`
 
-包含小时风暴增水 Ridge 滚动基线、汇报图片、CSV 和阶段总结。从 `projects/xiamen_short_term/` 目录运行原 README 中的命令。
+包含早期小时风暴增水 Ridge 滚动基线，以及已恢复的 ERA5 正式模型和多年 v2 流程。v2 支持 1970—1997 数据逐年预处理、训练期 UTide 标定、按年份训练/验证/测试、内存映射、Persistence/Ridge 基线、ERA5-only/Surge-only/双分支模型、72 小时滚动诊断和期刊绘图。运行方式见项目 README。
 
 ### 3. 加勒比短时预测
 
