@@ -1,1 +1,5 @@
-"""厦门站小时级短时风暴潮预报代码。"""
+"""Shared metrics and journal figures for short-term forecast results.
+
+Formal Xiamen data preparation, training, and forecasting live in
+``src.xiamen_forecast``.
+"""

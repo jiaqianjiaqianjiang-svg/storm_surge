@@ -1,6 +1,6 @@
 # Storm Surge 工作区索引
 
-本仓库按“研究项目、参考资料、工具、报告、归档”分类。整理过程只移动和归类文件，没有删除原有内容。
+本仓库按“研究项目、参考资料、工具、报告、归档”分类。厦门短时预报已经统一到正式 v2 入口，确认被替代的重复训练代码已清理。
 
 ## 主要项目
 
@@ -17,7 +17,7 @@
 
 位置：`projects/xiamen_short_term/short_term_forecast/`
 
-包含早期小时风暴增水 Ridge 滚动基线，以及已恢复的 ERA5 正式模型和多年 v2 流程。v2 支持 1970—1997 数据逐年预处理、训练期 UTide 标定、按年份训练/验证/测试、内存映射、Persistence/Ridge 基线、ERA5-only/Surge-only/双分支模型、72 小时滚动诊断和期刊绘图。运行方式见项目 README。
+包含早期小时风暴增水 Ridge 结果，以及完整的 ERA5 多年 v2 流程。v2 支持 1970—1997 数据逐年预处理、训练期 UTide 标定、按年份训练/验证/测试、内存映射、Persistence/Ridge 基线、ERA5-only/Surge-only 消融、CNN/CNN-LSTM/CNN-GRU/TCN/Transformer 对比、CNN 六步递归微调、72 小时滚动诊断和期刊绘图。运行方式见项目 README。
 
 ### 3. 加勒比短时预测
 

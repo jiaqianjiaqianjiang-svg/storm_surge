@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 import json
 import random
 from datetime import datetime, timezone
@@ -46,7 +47,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--optimizer", choices=["adam", "sgd"], default="adam")
     parser.add_argument("--patience", type=int, default=8)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--model-type", choices=sorted(MODEL_TYPES), default="dual")
+    parser.add_argument("--model-type", choices=sorted(MODEL_TYPES), default="cnn")
+    parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
+    parser.add_argument("--num-workers", type=int, default=0)
+    parser.add_argument(
+        "--no-amp",
+        action="store_true",
+        help="Disable CUDA automatic mixed precision (enabled by default on CUDA).",
+    )
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--dataset-path", type=Path)
     parser.add_argument("--baseline-dir", type=Path)
@@ -58,6 +66,19 @@ def set_seed(seed: int) -> None:
     random.seed(seed); np.random.seed(seed); torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+
+
+def amp_context(enabled: bool):
+    if not enabled:
+        return nullcontext()
+    return torch.autocast(device_type="cuda", dtype=torch.float16)
+
+
+def make_grad_scaler(enabled: bool):
+    try:
+        return torch.amp.GradScaler("cuda", enabled=enabled)
+    except (AttributeError, TypeError):
+        return torch.cuda.amp.GradScaler(enabled=enabled)
 
 
 def load_prepared(path: Path, start_year: int, end_year: int) -> tuple[np.ndarray, np.ndarray, pd.DatetimeIndex]:
@@ -116,12 +137,35 @@ def main() -> None:
         )
         dataset_report["split_mode"] = "ratio"
         test_set = None
-    train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True)
-    validation_loader = DataLoader(validation_set, batch_size=args.batch_size)
-    test_loader = DataLoader(test_set, batch_size=args.batch_size) if test_set else None
+    device = torch.device(
+        "cuda"
+        if args.device == "auto" and torch.cuda.is_available()
+        else ("cpu" if args.device == "auto" else args.device)
+    )
+    if device.type == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA was requested but is unavailable")
+    if device.type == "cuda":
+        torch.backends.cudnn.benchmark = True
+    pin_memory = device.type == "cuda"
+    loader_options = {
+        "batch_size": args.batch_size,
+        "num_workers": args.num_workers,
+        "pin_memory": pin_memory,
+        "persistent_workers": args.num_workers > 0,
+    }
+    train_loader = DataLoader(train_set, shuffle=True, **loader_options)
+    validation_loader = DataLoader(validation_set, **loader_options)
+    test_loader = DataLoader(test_set, **loader_options) if test_set else None
     variables = ("U10", "V10", "MSL")
     model = create_model(args.model_type, args.input_steps, variables, atmosphere.shape[-1])
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu"); model.to(device)
+    model.to(device)
+    use_amp = device.type == "cuda" and not args.no_amp
+    grad_scaler = make_grad_scaler(use_amp)
+    print(
+        f"model={args.model_type} device={device} amp={use_amp} "
+        f"batch_size={args.batch_size} workers={args.num_workers}",
+        flush=True,
+    )
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr) if args.optimizer == "adam" else torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
     best_loss, stale, history = float("inf"), 0, []
@@ -131,14 +175,26 @@ def main() -> None:
     for epoch in range(1, args.epochs + 1):
         model.train(); total, count = 0.0, 0
         for weather, surge_history, target in train_loader:
-            weather, surge_history, target = weather.to(device), surge_history.to(device), target.to(device)
-            optimizer.zero_grad(); loss = criterion(model(weather, surge_history), target); loss.backward(); optimizer.step()
+            weather = weather.to(device, non_blocking=pin_memory)
+            surge_history = surge_history.to(device, non_blocking=pin_memory)
+            target = target.to(device, non_blocking=pin_memory)
+            optimizer.zero_grad(set_to_none=True)
+            with amp_context(use_amp):
+                loss = criterion(model(weather, surge_history), target)
+            grad_scaler.scale(loss).backward()
+            grad_scaler.step(optimizer)
+            grad_scaler.update()
             total += loss.item() * len(target); count += len(target)
         model.eval(); val_total, val_count = 0.0, 0
         with torch.no_grad():
             for weather, surge_history, target in validation_loader:
-                target = target.to(device); predictions = model(weather.to(device), surge_history.to(device))
-                val_total += criterion(predictions, target).item() * len(target); val_count += len(target)
+                target = target.to(device, non_blocking=pin_memory)
+                weather = weather.to(device, non_blocking=pin_memory)
+                surge_history = surge_history.to(device, non_blocking=pin_memory)
+                with amp_context(use_amp):
+                    predictions = model(weather, surge_history)
+                    validation_loss = criterion(predictions, target)
+                val_total += validation_loss.item() * len(target); val_count += len(target)
         train_loss, val_loss = total / count, val_total / val_count
         history.append({
             "epoch": epoch,
@@ -180,7 +236,10 @@ def main() -> None:
         scaled_predictions, scaled_observed = [], []
         with torch.no_grad():
             for weather, surge_history, target in loader:
-                predictions = model(weather.to(device), surge_history.to(device))
+                weather = weather.to(device, non_blocking=pin_memory)
+                surge_history = surge_history.to(device, non_blocking=pin_memory)
+                with amp_context(use_amp):
+                    predictions = model(weather, surge_history)
                 scaled_predictions.extend(predictions.cpu().numpy())
                 scaled_observed.extend(target.numpy())
         predicted = np.asarray(scaled_predictions) * scale + mean

@@ -7,6 +7,13 @@ from typing import Any, Sequence
 import torch
 from torch import nn
 
+from .temporal_models import (
+    CNNGRUForecastModel,
+    CNNLSTMForecastModel,
+    TCNForecastModel,
+    TransformerForecastModel,
+)
+
 
 class XiamenSurgeCNN(nn.Module):
     def __init__(
@@ -144,9 +151,14 @@ class SurgeHistoryMLP(nn.Module):
 
 
 MODEL_TYPES: dict[str, type[nn.Module]] = {
+    "cnn": XiamenSurgeCNN,
+    "cnn_gru": CNNGRUForecastModel,
+    "cnn_lstm": CNNLSTMForecastModel,
     "dual": XiamenSurgeCNN,
     "era5_cnn": ERA5OnlyCNN,
     "surge_mlp": SurgeHistoryMLP,
+    "tcn": TCNForecastModel,
+    "transformer": TransformerForecastModel,
 }
 
 

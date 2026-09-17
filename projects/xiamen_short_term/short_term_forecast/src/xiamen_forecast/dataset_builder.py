@@ -106,7 +106,7 @@ class SchemeBDataset(Dataset):
         targets: list[int],
         input_steps: int = 24,
         scalers: dict[str, Standardisation] | None = None,
-        model_type: str = "dual",
+        model_type: str = "cnn",
     ) -> None:
         self.atmosphere = atmosphere
         self.surge = np.asarray(surge, dtype=np.float32)
@@ -152,7 +152,7 @@ def build_datasets(
     times: object,
     input_steps: int = 24,
     train_ratio: float = 0.8,
-    model_type: str = "dual",
+    model_type: str = "cnn",
 ) -> tuple[SchemeBDataset, SchemeBDataset, dict[str, Any]]:
     if not 0.5 <= train_ratio < 1:
         raise ValueError("train_ratio must be in [0.5, 1)")
@@ -191,7 +191,7 @@ def build_year_datasets(
     train_end_year: int = 1995,
     validation_year: int = 1996,
     test_year: int = 1997,
-    model_type: str = "dual",
+    model_type: str = "cnn",
 ) -> tuple[SchemeBDataset, SchemeBDataset, SchemeBDataset, dict[str, Any]]:
     """Build leakage-safe train/validation/test datasets by target year."""
     if not train_start_year <= train_end_year < validation_year < test_year:

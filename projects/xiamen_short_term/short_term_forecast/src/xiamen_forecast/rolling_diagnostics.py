@@ -35,14 +35,32 @@ except ImportError:
 
 MODULE_ROOT = Path(__file__).resolve().parents[2]
 LEADS = (1, 3, 6, 12, 24, 48, 72)
-MODEL_NAMES = ("persistence", "ridge", "surge_mlp", "era5_cnn", "dual")
+NEURAL_MODEL_NAMES = (
+    "surge_mlp",
+    "era5_cnn",
+    "cnn",
+    "cnn_lstm",
+    "cnn_gru",
+    "tcn",
+    "transformer",
+)
 DISPLAY_NAMES = {
     "persistence": "Persistence",
     "ridge": "Ridge",
     "surge_mlp": "Surge MLP",
     "era5_cnn": "ERA5 CNN",
-    "dual": "Dual branch",
+    "cnn": "CNN",
+    "cnn_lstm": "CNN-LSTM",
+    "cnn_gru": "CNN-GRU",
+    "tcn": "TCN",
+    "transformer": "Transformer",
 }
+
+
+def display_name(name: str) -> str:
+    if name.startswith("cnn_rollout"):
+        return f"CNN rollout-{name.removeprefix('cnn_rollout')}"
+    return DISPLAY_NAMES.get(name, name)
 
 
 def parse_args() -> argparse.Namespace:
@@ -52,10 +70,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--validation-year", type=int, default=1996)
     parser.add_argument("--input-steps", type=int, default=24)
     parser.add_argument("--max-lead", type=int, default=72)
-    parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--dataset-path", type=Path)
     parser.add_argument("--checkpoint-root", type=Path)
     parser.add_argument("--ridge-path", type=Path)
+    parser.add_argument(
+        "--rollout-checkpoint",
+        type=Path,
+        help="Optional CNN checkpoint fine-tuned with recursive rollout loss.",
+    )
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     return parser.parse_args()
@@ -109,13 +132,24 @@ def find_common_origins(
     return np.asarray(origins, dtype=np.int64)
 
 
+def resolve_checkpoint_path(checkpoint_root: Path, name: str) -> Path:
+    path = checkpoint_root / name / "best_model.pth"
+    legacy_path = checkpoint_root / "dual" / "best_model.pth"
+    if name == "cnn" and not path.is_file() and legacy_path.is_file():
+        return legacy_path
+    return path
+
+
 def load_models(
-    checkpoint_root: Path, device: torch.device
-) -> tuple[dict[str, torch.nn.Module], dict[str, Any]]:
+    checkpoint_root: Path,
+    device: torch.device,
+    rollout_checkpoint: Path | None = None,
+) -> tuple[dict[str, torch.nn.Module], dict[str, Any], dict[str, Path]]:
     models: dict[str, torch.nn.Module] = {}
     checkpoints: dict[str, Any] = {}
-    for name in ("surge_mlp", "era5_cnn", "dual"):
-        path = checkpoint_root / name / "best_model.pth"
+    paths: dict[str, Path] = {}
+    for name in NEURAL_MODEL_NAMES:
+        path = resolve_checkpoint_path(checkpoint_root, name)
         if not path.is_file():
             raise FileNotFoundError(f"Missing seed-42 checkpoint: {path}")
         checkpoint = torch.load(path, map_location=device, weights_only=False)
@@ -123,13 +157,27 @@ def load_models(
         model.eval()
         models[name] = model
         checkpoints[name] = checkpoint
-    reference = checkpoints["dual"]["scalers"]
+        paths[name] = path
+    if rollout_checkpoint is not None:
+        if not rollout_checkpoint.is_file():
+            raise FileNotFoundError(f"Missing rollout checkpoint: {rollout_checkpoint}")
+        checkpoint = torch.load(
+            rollout_checkpoint, map_location=device, weights_only=False
+        )
+        model = model_from_checkpoint(checkpoint).to(device)
+        model.eval()
+        rollout_steps = int(checkpoint.get("rollout_training", {}).get("rollout_steps", 6))
+        rollout_name = f"cnn_rollout{rollout_steps}"
+        models[rollout_name] = model
+        checkpoints[rollout_name] = checkpoint
+        paths[rollout_name] = rollout_checkpoint
+    reference = checkpoints["cnn"]["scalers"]
     for name, checkpoint in checkpoints.items():
         if checkpoint["scalers"] != reference:
-            raise ValueError(f"{name} uses scalers inconsistent with the dual model")
+            raise ValueError(f"{name} uses scalers inconsistent with the CNN model")
         if int(checkpoint["input_steps"]) != 24:
             raise ValueError(f"{name} was not trained with a 24-hour input window")
-    return models, checkpoints
+    return models, checkpoints, paths
 
 
 def recursive_predictions(
@@ -146,8 +194,9 @@ def recursive_predictions(
     device: torch.device,
 ) -> dict[str, np.ndarray]:
     count = len(origins)
+    model_names = ("persistence", "ridge", *models)
     predictions = {
-        name: np.empty((count, max_lead), dtype=np.float32) for name in MODEL_NAMES
+        name: np.empty((count, max_lead), dtype=np.float32) for name in model_names
     }
     predictions["persistence"][:] = np.asarray(surge[origins - 1], dtype=np.float32)[:, None]
     atmosphere_mean = np.asarray(scalers["atmosphere"]["mean"], dtype=np.float32).reshape(
@@ -164,11 +213,12 @@ def recursive_predictions(
         batch_stop = min(count, batch_start + batch_size)
         batch_origins = origins[batch_start:batch_stop]
         size = len(batch_origins)
+        history_model_names = tuple(name for name in models if name != "era5_cnn")
         histories = {
             name: np.stack(
                 [np.asarray(surge[o - input_steps : o], dtype=np.float32) for o in batch_origins]
             )
-            for name in ("ridge", "surge_mlp", "dual")
+            for name in ("ridge", *history_model_names)
         }
         empty_weather = torch.empty((size, 0), dtype=torch.float32, device=device)
         with torch.inference_mode():
@@ -198,38 +248,32 @@ def recursive_predictions(
                 ridge_values = ridge.predict(ridge_features).astype(np.float32)
                 predictions["ridge"][batch_start:batch_stop, lead - 1] = ridge_values
 
-                mlp_history = torch.from_numpy(
-                    (histories["surge_mlp"] - surge_mean) / surge_scale
-                ).to(device, non_blocking=True)
-                mlp_scaled = models["surge_mlp"](empty_weather, mlp_history)
-                mlp_values = (
-                    mlp_scaled.detach().cpu().numpy() * surge_scale + surge_mean
-                ).astype(np.float32)
-                predictions["surge_mlp"][batch_start:batch_stop, lead - 1] = mlp_values
+                neural_values: dict[str, np.ndarray] = {}
+                for name, model in models.items():
+                    if name == "surge_mlp":
+                        model_weather = empty_weather
+                    else:
+                        model_weather = weather_tensor
+                    if name == "era5_cnn":
+                        model_history = torch.empty(
+                            (size, 0), dtype=torch.float32, device=device
+                        )
+                    else:
+                        model_history = torch.from_numpy(
+                            (histories[name] - surge_mean) / surge_scale
+                        ).to(device, non_blocking=True)
+                    scaled = model(model_weather, model_history)
+                    values = (
+                        scaled.detach().cpu().numpy() * surge_scale + surge_mean
+                    ).astype(np.float32)
+                    neural_values[name] = values
+                    predictions[name][batch_start:batch_stop, lead - 1] = values
 
-                dummy_history = torch.empty((size, 0), dtype=torch.float32, device=device)
-                era_scaled = models["era5_cnn"](weather_tensor, dummy_history)
-                era_values = (
-                    era_scaled.detach().cpu().numpy() * surge_scale + surge_mean
-                ).astype(np.float32)
-                predictions["era5_cnn"][batch_start:batch_stop, lead - 1] = era_values
-
-                dual_history = torch.from_numpy(
-                    (histories["dual"] - surge_mean) / surge_scale
-                ).to(device, non_blocking=True)
-                dual_scaled = models["dual"](weather_tensor, dual_history)
-                dual_values = (
-                    dual_scaled.detach().cpu().numpy() * surge_scale + surge_mean
-                ).astype(np.float32)
-                predictions["dual"][batch_start:batch_stop, lead - 1] = dual_values
-
-                for name, values in (
-                    ("ridge", ridge_values),
-                    ("surge_mlp", mlp_values),
-                    ("dual", dual_values),
-                ):
+                histories["ridge"][:, :-1] = histories["ridge"][:, 1:]
+                histories["ridge"][:, -1] = ridge_values
+                for name in history_model_names:
                     histories[name][:, :-1] = histories[name][:, 1:]
-                    histories[name][:, -1] = values
+                    histories[name][:, -1] = neural_values[name]
         print(
             f"recursive batch {batch_stop}/{count} complete on {device}",
             flush=True,
@@ -258,7 +302,7 @@ def build_metrics(
         rise_mask = rises >= rise_threshold if np.isfinite(rise_threshold) else np.zeros(
             len(observed), dtype=bool
         )
-        for name in MODEL_NAMES:
+        for name in predictions:
             predicted = predictions[name][:, lead - 1]
             overall = calculate_metrics(observed, predicted)
             model_mse = float(np.mean((predicted - observed) ** 2))
@@ -309,14 +353,14 @@ def save_prediction_table(
 
 def plot_rmse(metrics: pd.DataFrame, destination: Path, validation_year: int) -> None:
     fig, ax = plt.subplots(figsize=(9, 5.5))
-    for name in MODEL_NAMES:
+    for name in metrics.model.drop_duplicates():
         subset = metrics[metrics.model == name]
         ax.plot(
             subset.lead_hours,
             subset.rmse_cm,
             marker="o",
             linewidth=1.8,
-            label=DISPLAY_NAMES[name],
+            label=display_name(name),
         )
     ax.set(xlabel="Lead time (hours)", ylabel="RMSE (cm)")
     ax.set_xticks(LEADS)
@@ -362,12 +406,12 @@ def plot_strong_events(
         observed = np.asarray(surge[origin : origin + max_lead]) * 100
         fig, ax = plt.subplots(figsize=(11, 5.5))
         ax.plot(valid_times, observed, color="black", linewidth=2.2, label="Observed")
-        for name in MODEL_NAMES:
+        for name in predictions:
             ax.plot(
                 valid_times,
                 predictions[name][position] * 100,
                 linewidth=1.3,
-                label=DISPLAY_NAMES[name],
+                label=display_name(name),
             )
         ax.axhline(0, color="grey", linewidth=0.7)
         ax.set(xlabel="Valid time", ylabel="Storm surge (cm)")
@@ -419,7 +463,7 @@ def write_report(
         subset = metrics[metrics.lead_hours == lead].sort_values("rmse_cm")
         row = subset.iloc[0]
         best_by_lead.append(
-            f"- {lead} h：{DISPLAY_NAMES[row.model]} 最低，RMSE {row.rmse_cm:.3f} cm。"
+            f"- {lead} h：{display_name(row.model)} 最低，RMSE {row.rmse_cm:.3f} cm。"
         )
     table = markdown_table(wide)
     content = f"""# 厦门 {metadata['validation_year']} 年滚动预报诊断
@@ -430,8 +474,8 @@ def write_report(
 - 仅加载到验证年 {metadata['validation_year']}，没有读取测试年数据。
 - 使用已训练的seed 42一步模型，输入窗口24小时，递归到72小时。
 - ERA5使用各未来时次的再分析真值；这只隔离检查模型与递归误差，不能表述为真实业务预报。
-- 岭回归、surge_mlp和双分支模型各自回填预测增水，没有使用未来真实增水。
-- 五个模型共享同一批{metadata['common_origin_count']}个起报时刻；每个起报点的全部指定提前量均有真实观测。
+- 岭回归及所有依赖历史增水的神经网络各自回填预测值，没有使用未来真实增水。
+- 所有模型共享同一批{metadata['common_origin_count']}个起报时刻；每个起报点的全部指定提前量均有真实观测。
 - 单位：下表RMSE均为cm。
 
 ## 各提前量RMSE
@@ -497,7 +541,9 @@ def main() -> None:
         raise ValueError("No common validation-year origins satisfy the experiment rules")
     print(f"common forecast origins: {len(origins)}", flush=True)
 
-    models, checkpoints = load_models(checkpoint_root, device)
+    models, checkpoints, checkpoint_paths = load_models(
+        checkpoint_root, device, args.rollout_checkpoint
+    )
     ridge = joblib.load(ridge_path)
     summaries = summarise_atmosphere(atmosphere)
     predictions = recursive_predictions(
@@ -507,7 +553,7 @@ def main() -> None:
         summaries,
         ridge,
         models,
-        checkpoints["dual"]["scalers"],
+        checkpoints["cnn"]["scalers"],
         args.input_steps,
         args.max_lead,
         args.batch_size,
@@ -517,9 +563,7 @@ def main() -> None:
     metrics.to_csv(output / "rolling_metrics_long.csv", index=False)
     rmse = metrics.pivot(index="lead_hours", columns="model", values="rmse_cm").reset_index()
     rmse.insert(1, "valid_samples", len(origins))
-    rmse = rmse[
-        ["lead_hours", "valid_samples", "persistence", "ridge", "surge_mlp", "era5_cnn", "dual"]
-    ]
+    rmse = rmse[["lead_hours", "valid_samples", *predictions]]
     rmse.to_csv(output / "rolling_rmse_table.csv", index=False)
     save_prediction_table(output, times, surge, origins, predictions)
     plot_rmse(metrics, output / "rmse_vs_lead.png", args.validation_year)
@@ -542,10 +586,7 @@ def main() -> None:
         "last_origin": times[int(origins[-1])].isoformat(),
         "device": str(device),
         "torch_version": torch.__version__,
-        "checkpoints": {
-            name: str(checkpoint_root / name / "best_model.pth")
-            for name in ("surge_mlp", "era5_cnn", "dual")
-        },
+        "checkpoints": {name: str(path) for name, path in checkpoint_paths.items()},
         "ridge_pipeline": str(ridge_path),
         "strong_events": events,
     }

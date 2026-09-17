@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import numpy as np
@@ -6,11 +7,13 @@ import pytest
 import torch
 
 from src.xiamen_forecast.dataset_builder import build_year_datasets
+from src.xiamen_forecast.compare_models import collect_model_metrics
 from src.xiamen_forecast.era5_loader import load_era5_files
 from src.xiamen_forecast.evaluate import calculate_detailed_metrics
 from src.xiamen_forecast.forecast_model import create_model
 from src.xiamen_forecast.prepare_xiamen import resolve_era5_files
 from src.xiamen_forecast.tide_quality_control import quality_control
+from src.xiamen_forecast.train_rollout_cnn import rollout_forward, rollout_origins
 from src.xiamen_forecast.train_xiamen import load_prepared
 
 
@@ -68,12 +71,77 @@ def test_year_split_is_temporal_and_scalers_use_training_data() -> None:
     assert min(test.times[test.targets]).year == 1997
 
 
-@pytest.mark.parametrize("model_type", ["dual", "era5_cnn", "surge_mlp"])
+@pytest.mark.parametrize(
+    "model_type",
+    [
+        "cnn",
+        "cnn_gru",
+        "cnn_lstm",
+        "dual",
+        "era5_cnn",
+        "surge_mlp",
+        "tcn",
+        "transformer",
+    ],
+)
 def test_models_accept_24_hour_windows(model_type: str) -> None:
     model = create_model(model_type, 24, ("U10", "V10", "MSL"), 40)
-    weather = torch.zeros(2, 72, 40, 40)
-    history = torch.zeros(2, 24)
-    assert model(weather, history).shape == (2,)
+    weather = torch.zeros(1, 72, 40, 40)
+    history = torch.zeros(1, 24)
+    assert model(weather, history).shape == (1,)
+
+
+def test_rollout_training_reuses_predictions_without_future_truth() -> None:
+    model = create_model("cnn", 4, ("U10", "V10", "MSL"), 8)
+    weather = torch.zeros(2, 3, 128)
+    history = torch.zeros(2, 4)
+    targets = torch.full((2, 3), 99.0)
+    predicted = rollout_forward(model, weather, history, targets, teacher_ratio=0.0)
+    assert predicted.shape == (2, 3)
+    assert torch.isfinite(predicted).all()
+
+
+def test_rollout_origins_respect_year_and_complete_windows() -> None:
+    times = pd.date_range("1995-12-31 20:00", periods=36, freq="1h")
+    valid = np.ones(len(times), dtype=bool)
+    surge = np.zeros(len(times), dtype=np.float32)
+    origins = rollout_origins(times, valid, surge, {1996}, 4, 3)
+    assert len(origins)
+    assert all(times[index].year == 1996 for index in origins)
+    assert all(times[index + 2].year == 1996 for index in origins)
+
+
+def test_model_comparison_collects_formal_and_baseline_metrics(tmp_path: Path) -> None:
+    model_root = tmp_path / "formal_seed42"
+    baseline_dir = tmp_path / "baselines"
+    (model_root / "cnn").mkdir(parents=True)
+    baseline_dir.mkdir()
+    overall = {
+        "n": 10,
+        "pearson_r": 0.9,
+        "rmse_cm": 4.0,
+        "mae_cm": 3.0,
+        "bias_cm": 0.2,
+    }
+    (model_root / "cnn" / "metrics.json").write_text(
+        json.dumps({"validation": {"overall": overall}}), encoding="utf-8"
+    )
+    (baseline_dir / "baseline_metrics.json").write_text(
+        json.dumps(
+            {
+                "metrics": {
+                    "validation": {
+                        "persistence": {"overall": overall},
+                        "ridge": {"overall": overall},
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.warns(UserWarning):
+        frame = collect_model_metrics(model_root, baseline_dir)
+    assert frame.model.tolist() == ["persistence", "ridge", "cnn"]
 
 
 def test_prepared_directory_loads_as_memory_maps(tmp_path: Path) -> None:
