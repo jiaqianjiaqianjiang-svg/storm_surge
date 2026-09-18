@@ -12,8 +12,10 @@ from src.xiamen_forecast.era5_loader import load_era5_files
 from src.xiamen_forecast.evaluate import calculate_detailed_metrics
 from src.xiamen_forecast.forecast_model import create_model
 from src.xiamen_forecast.prepare_xiamen import resolve_era5_files
+from src.xiamen_forecast.rolling_diagnostics import display_name
 from src.xiamen_forecast.tide_quality_control import quality_control
 from src.xiamen_forecast.train_rollout_cnn import rollout_forward, rollout_origins
+from src.xiamen_forecast.train_rollout_temporal import temporal_rollout_forward
 from src.xiamen_forecast.train_xiamen import load_prepared
 
 
@@ -99,6 +101,34 @@ def test_rollout_training_reuses_predictions_without_future_truth() -> None:
     predicted = rollout_forward(model, weather, history, targets, teacher_ratio=0.0)
     assert predicted.shape == (2, 3)
     assert torch.isfinite(predicted).all()
+
+
+def test_temporal_encoded_forward_matches_raw_weather_forward() -> None:
+    model = create_model("cnn_gru", 4, ("U10", "V10", "MSL"), 8).eval()
+    weather = torch.randn(2, 12, 8, 8)
+    history = torch.randn(2, 4)
+    with torch.inference_mode():
+        embeddings = model.weather_features(weather)
+        raw_prediction = model(weather, history)
+        encoded_prediction = model.forward_encoded(embeddings, history)
+    assert torch.allclose(raw_prediction, encoded_prediction)
+
+
+def test_temporal_rollout_does_not_use_targets_without_teacher_forcing() -> None:
+    model = create_model("cnn_gru", 4, ("U10", "V10", "MSL"), 8).eval()
+    weather = torch.randn(2, 3, 4, 64)
+    history = torch.randn(2, 4)
+    first_targets = torch.zeros(2, 3)
+    second_targets = torch.full((2, 3), 100.0)
+    with torch.inference_mode():
+        first = temporal_rollout_forward(
+            model, weather, history, first_targets, teacher_ratio=0.0
+        )
+        second = temporal_rollout_forward(
+            model, weather, history, second_targets, teacher_ratio=0.0
+        )
+    assert torch.allclose(first, second)
+    assert display_name("cnn_gru_rollout6") == "CNN-GRU rollout-6"
 
 
 def test_rollout_origins_respect_year_and_complete_windows() -> None:

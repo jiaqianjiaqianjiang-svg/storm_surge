@@ -58,8 +58,9 @@ DISPLAY_NAMES = {
 
 
 def display_name(name: str) -> str:
-    if name.startswith("cnn_rollout"):
-        return f"CNN rollout-{name.removeprefix('cnn_rollout')}"
+    if "_rollout" in name:
+        base, steps = name.rsplit("_rollout", 1)
+        return f"{DISPLAY_NAMES.get(base, base)} rollout-{steps}"
     return DISPLAY_NAMES.get(name, name)
 
 
@@ -77,7 +78,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--rollout-checkpoint",
         type=Path,
-        help="Optional CNN checkpoint fine-tuned with recursive rollout loss.",
+        help="Optional CNN-family checkpoint fine-tuned with recursive rollout loss.",
     )
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
@@ -166,8 +167,10 @@ def load_models(
         )
         model = model_from_checkpoint(checkpoint).to(device)
         model.eval()
-        rollout_steps = int(checkpoint.get("rollout_training", {}).get("rollout_steps", 6))
-        rollout_name = f"cnn_rollout{rollout_steps}"
+        rollout_metadata = checkpoint.get("rollout_training", {})
+        rollout_steps = int(rollout_metadata.get("rollout_steps", 6))
+        base_model = str(rollout_metadata.get("base_model_type", "cnn"))
+        rollout_name = f"{base_model}_rollout{rollout_steps}"
         models[rollout_name] = model
         checkpoints[rollout_name] = checkpoint
         paths[rollout_name] = rollout_checkpoint
@@ -495,7 +498,7 @@ def write_report(
 
 ## 解释限制
 
-现有网络只针对下一小时训练，长提前量结果用于诊断递归误差从何时开始失控，以及ERA5在较长提前量是否出现增量价值；不能据此直接否定神经网络，也不能把本实验称为业务预报。
+除明确标记为rollout的模型外，现有网络只针对下一小时训练。长提前量结果用于诊断递归误差从何时开始失控，以及多步训练能否提高稳定性；不能据此直接否定神经网络，也不能把本实验称为业务预报。
 """
     (output / "rolling_diagnostic_report.md").write_text(content, encoding="utf-8")
 

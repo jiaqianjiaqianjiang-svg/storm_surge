@@ -78,11 +78,13 @@ python -m src.xiamen_forecast.compare_models --split validation
 
 在模型方案完全确定前，不要用 `--split test` 反复挑模型，以免把 1997 独立测试年变成调参数据。
 
-6. 基础 CNN 完成后，可继续做 6 步递归损失微调。它从已有一步 CNN 权重开始，冻结耗时最大的气象编码器，只调整历史分支和融合层，因此不是重新从头训练：
+6. 1996 验证集上 CNN-GRU 的一步预测 RMSE 最低，因此以它作为主模型进行 6 步递归损失微调。程序从已有 CNN-GRU 权重继续训练，预计算并冻结耗时最大的逐小时气象编码器，只更新 GRU 和回归头，因此不是从头训练：
 
 ```powershell
-python -m src.xiamen_forecast.train_rollout_cnn --device cuda --rollout-steps 6
+python -m src.xiamen_forecast.train_rollout_temporal --model-type cnn_gru --device cuda --rollout-steps 6
 ```
+
+同一入口也支持 `cnn_lstm`、`tcn` 和 `transformer`，但不应在查看1997测试结果后反复挑选；当前主实验只微调由1996验证集选出的CNN-GRU。原来的 `train_rollout_cnn` 保留用于普通CNN对照。
 
 7. 所有一步模型完成后，在 1996 验证年统一比较 1、3、6、12、24、48、72 小时递归回算：
 
@@ -93,12 +95,12 @@ python -m src.xiamen_forecast.rolling_diagnostics --device cuda
 如已完成 6 步微调，可把它加入同一张对比表：
 
 ```powershell
-python -m src.xiamen_forecast.rolling_diagnostics --device cuda --rollout-checkpoint "models\xiamen\formal_seed42\cnn_rollout6\best_model.pth"
+python -m src.xiamen_forecast.rolling_diagnostics --device cuda --rollout-checkpoint "models\xiamen\formal_seed42\cnn_gru_rollout6\best_model.pth"
 ```
 
 滚动实验使用未来时次的 ERA5 再分析场，因此应称为“已知未来大气强迫条件下的历史回算”，不能表述为业务实时预报。1997 测试年在模型和方案确定前保持封存。
 
-这一版已经接入 CNN、CNN-LSTM、CNN-GRU、TCN、Transformer 和 CNN 6 步递归微调。加勒比项目中的直接 24 小时表格模型、ERA5 消融扩展和物理残差融合尚未直接复制到厦门；应先完成上述统一模型对比，再根据 1996 验证结果决定是否迁移。
+这一版已经接入 CNN、CNN-LSTM、CNN-GRU、TCN、Transformer，以及普通CNN和时序模型的递归微调。加勒比项目中的直接 24 小时表格模型、ERA5 消融扩展和物理残差融合尚未直接复制到厦门；应先完成上述统一模型对比，再根据 1996 验证结果决定是否迁移。
 
 ## 测试
 

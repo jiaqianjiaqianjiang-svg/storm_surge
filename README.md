@@ -17,7 +17,7 @@
 
 位置：`projects/xiamen_short_term/short_term_forecast/`
 
-包含早期小时风暴增水 Ridge 结果，以及完整的 ERA5 多年 v2 流程。v2 支持 1970—1997 数据逐年预处理、训练期 UTide 标定、按年份训练/验证/测试、内存映射、Persistence/Ridge 基线、ERA5-only/Surge-only 消融、CNN/CNN-LSTM/CNN-GRU/TCN/Transformer 对比、CNN 六步递归微调、72 小时滚动诊断和期刊绘图。运行方式见项目 README。
+包含早期小时风暴增水 Ridge 结果，以及完整的 ERA5 多年 v2 流程。v2 支持 1970—1997 数据逐年预处理、训练期 UTide 标定、按年份训练/验证/测试、内存映射、Persistence/Ridge 基线、ERA5-only/Surge-only 消融、CNN/CNN-LSTM/CNN-GRU/TCN/Transformer 对比、CNN-GRU 六步递归微调、72 小时滚动诊断和期刊绘图。运行方式见项目 README。
 
 ### 3. 加勒比短时预测
 

@@ -103,15 +103,28 @@ class _TemporalForecastBase(nn.Module):
         self.grid_size = int(grid_size)
         self.encoder = StepCNNEncoder(len(self.variables), self.grid_size)
 
-    def sequence_features(
-        self, atmosphere: torch.Tensor, surge_history: torch.Tensor
+    def weather_features(self, atmosphere: torch.Tensor) -> torch.Tensor:
+        return self.encoder(atmosphere, self.input_steps)
+
+    def sequence_from_embeddings(
+        self, weather: torch.Tensor, surge_history: torch.Tensor
     ) -> torch.Tensor:
         if surge_history.ndim != 2 or surge_history.shape[1] != self.input_steps:
             raise ValueError(
                 f"Surge history must have shape (batch, {self.input_steps})"
             )
-        weather = self.encoder(atmosphere, self.input_steps)
+        if weather.ndim != 3 or weather.shape[1:] != (self.input_steps, 64):
+            raise ValueError(
+                f"Weather embeddings must have shape (batch, {self.input_steps}, 64)"
+            )
         return torch.cat([weather, surge_history.unsqueeze(-1)], dim=-1)
+
+    def sequence_features(
+        self, atmosphere: torch.Tensor, surge_history: torch.Tensor
+    ) -> torch.Tensor:
+        return self.sequence_from_embeddings(
+            self.weather_features(atmosphere), surge_history
+        )
 
     def architecture_config(self) -> dict[str, Any]:
         return {
@@ -144,7 +157,14 @@ class CNNLSTMForecastModel(_TemporalForecastBase):
     def forward(
         self, atmosphere: torch.Tensor, surge_history: torch.Tensor
     ) -> torch.Tensor:
-        output, _ = self.lstm(self.sequence_features(atmosphere, surge_history))
+        return self.forward_encoded(self.weather_features(atmosphere), surge_history)
+
+    def forward_encoded(
+        self, weather: torch.Tensor, surge_history: torch.Tensor
+    ) -> torch.Tensor:
+        output, _ = self.lstm(
+            self.sequence_from_embeddings(weather, surge_history)
+        )
         return self.regressor(output[:, -1]).squeeze(-1)
 
 
@@ -170,7 +190,14 @@ class CNNGRUForecastModel(_TemporalForecastBase):
     def forward(
         self, atmosphere: torch.Tensor, surge_history: torch.Tensor
     ) -> torch.Tensor:
-        output, _ = self.gru(self.sequence_features(atmosphere, surge_history))
+        return self.forward_encoded(self.weather_features(atmosphere), surge_history)
+
+    def forward_encoded(
+        self, weather: torch.Tensor, surge_history: torch.Tensor
+    ) -> torch.Tensor:
+        output, _ = self.gru(
+            self.sequence_from_embeddings(weather, surge_history)
+        )
         return self.regressor(output[:, -1]).squeeze(-1)
 
 
@@ -198,7 +225,12 @@ class TCNForecastModel(_TemporalForecastBase):
     def forward(
         self, atmosphere: torch.Tensor, surge_history: torch.Tensor
     ) -> torch.Tensor:
-        sequence = self.sequence_features(atmosphere, surge_history).transpose(1, 2)
+        return self.forward_encoded(self.weather_features(atmosphere), surge_history)
+
+    def forward_encoded(
+        self, weather: torch.Tensor, surge_history: torch.Tensor
+    ) -> torch.Tensor:
+        sequence = self.sequence_from_embeddings(weather, surge_history).transpose(1, 2)
         features = self.temporal(self.projection(sequence))
         return self.regressor(features[:, :, -1]).squeeze(-1)
 
@@ -232,7 +264,12 @@ class TransformerForecastModel(_TemporalForecastBase):
     def forward(
         self, atmosphere: torch.Tensor, surge_history: torch.Tensor
     ) -> torch.Tensor:
-        sequence = self.sequence_features(atmosphere, surge_history)
+        return self.forward_encoded(self.weather_features(atmosphere), surge_history)
+
+    def forward_encoded(
+        self, weather: torch.Tensor, surge_history: torch.Tensor
+    ) -> torch.Tensor:
+        sequence = self.sequence_from_embeddings(weather, surge_history)
         hidden = self.input_projection(sequence) + self.positional
         encoded = self.transformer(hidden)
         return self.regressor(encoded[:, -1]).squeeze(-1)
