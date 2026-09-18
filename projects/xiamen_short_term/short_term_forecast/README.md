@@ -78,7 +78,7 @@ python -m src.xiamen_forecast.compare_models --split validation
 
 在模型方案完全确定前，不要用 `--split test` 反复挑模型，以免把 1997 独立测试年变成调参数据。
 
-6. 1996 验证集上 CNN-GRU 的一步预测 RMSE 最低，因此以它作为主模型进行 6 步递归损失微调。程序从已有 CNN-GRU 权重继续训练，预计算并冻结耗时最大的逐小时气象编码器，只更新 GRU 和回归头，因此不是从头训练：
+6. 1996 验证集上 CNN-GRU 的一步预测 RMSE 最低，因此以它作为主模型进行 6 步递归损失微调。程序从已有 CNN-GRU 权重继续训练，预计算并冻结耗时最大的逐小时气象编码器，只更新 GRU 和回归头，因此不是从头训练。训练前会先记录未微调模型的6步递归基线，teacher forcing在前5轮降到0，之后才启用early stopping；如果微调没有改善，原始权重会自动保留为最佳checkpoint：
 
 ```powershell
 python -m src.xiamen_forecast.train_rollout_temporal --model-type cnn_gru --device cuda --rollout-steps 6

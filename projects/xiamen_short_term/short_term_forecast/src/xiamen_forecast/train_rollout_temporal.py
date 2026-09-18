@@ -40,9 +40,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rollout-steps", type=int, default=6)
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--patience", type=int, default=5)
+    parser.add_argument("--teacher-forcing-epochs", type=int, default=5)
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--embedding-batch-size", type=int, default=1024)
-    parser.add_argument("--learning-rate", type=float, default=3e-4)
+    parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     parser.add_argument("--num-workers", type=int, default=0)
@@ -166,6 +167,38 @@ def temporal_rollout_forward(
     return torch.stack(outputs, dim=1)
 
 
+def scheduled_teacher_ratio(epoch: int, decay_epochs: int) -> float:
+    if epoch < 1 or decay_epochs < 1:
+        raise ValueError("epoch and decay_epochs must be positive")
+    return max(0.0, 1.0 - (epoch - 1) / max(1, decay_epochs - 1))
+
+
+def evaluate_recursive_mse(
+    model: nn.Module,
+    loader: DataLoader,
+    criterion: nn.Module,
+    device: torch.device,
+    use_amp: bool,
+    non_blocking: bool,
+) -> float:
+    model.eval()
+    total = 0.0
+    count = 0
+    with torch.inference_mode():
+        for weather, history, targets in loader:
+            weather = weather.to(device, non_blocking=non_blocking)
+            history = history.to(device, non_blocking=non_blocking)
+            targets = targets.to(device, non_blocking=non_blocking)
+            with amp_context(use_amp):
+                predicted = temporal_rollout_forward(
+                    model, weather, history, targets, 0.0
+                )
+                loss = criterion(predicted, targets)
+            total += float(loss) * len(targets)
+            count += len(targets)
+    return total / count
+
+
 def main() -> None:
     args = parse_args()
     set_seed(args.seed)
@@ -270,19 +303,74 @@ def main() -> None:
     )
     criterion = nn.MSELoss()
     grad_scaler = make_grad_scaler(use_amp)
-    best = float("inf")
+    base_validation_mse = evaluate_recursive_mse(
+        model,
+        validation_loader,
+        criterion,
+        device,
+        use_amp,
+        pin_memory,
+    )
+    base_validation_rmse_cm = float(
+        np.sqrt(base_validation_mse) * surge_scale * 100
+    )
+    best = base_validation_mse
+    best_epoch = 0
     stale = 0
-    rows: list[dict[str, float]] = []
+    rows: list[dict[str, float]] = [
+        {
+            "epoch": 0.0,
+            "teacher_forcing_ratio": 0.0,
+            "train_scaled_mse": float("nan"),
+            "validation_recursive_scaled_mse": base_validation_mse,
+            "validation_recursive_rmse_cm": base_validation_rmse_cm,
+        }
+    ]
     best_path = output / "best_model.pth"
+
+    def save_best_checkpoint(fine_tuned: bool) -> None:
+        torch.save(
+            {
+                **checkpoint,
+                "model_state_dict": model.state_dict(),
+                "rollout_training": {
+                    "base_model_type": args.model_type,
+                    "rollout_steps": args.rollout_steps,
+                    "teacher_forcing_schedule": (
+                        f"linear 1 to 0 over {args.teacher_forcing_epochs} epochs"
+                    ),
+                    "frozen_atmosphere_encoder": True,
+                    "selection_metric": (
+                        f"{args.validation_year} recursive rollout MSE"
+                    ),
+                    "base_validation_scaled_mse": base_validation_mse,
+                    "best_validation_scaled_mse": best,
+                    "best_epoch": best_epoch,
+                    "fine_tuned_improved_over_base": fine_tuned,
+                    "train_samples": len(train_origins),
+                    "validation_samples": len(validation_origins),
+                    "seed": args.seed,
+                },
+            },
+            best_path,
+        )
+
+    save_best_checkpoint(fine_tuned=False)
     print(
         f"model={args.model_type} device={device} amp={use_amp} "
         f"train_origins={len(train_origins)} validation_origins={len(validation_origins)}",
         flush=True,
     )
+    print(
+        f"base_recursive_validation_rmse_cm={base_validation_rmse_cm:.4f}",
+        flush=True,
+    )
     for epoch in range(1, args.epochs + 1):
         model.train()
         model.encoder.eval()
-        teacher_ratio = max(0.0, 1.0 - (epoch - 1) / max(1, args.epochs - 1))
+        teacher_ratio = scheduled_teacher_ratio(
+            epoch, args.teacher_forcing_epochs
+        )
         train_total = 0.0
         train_count = 0
         for weather, history, targets in train_loader:
@@ -301,22 +389,14 @@ def main() -> None:
             train_total += float(loss.detach()) * len(targets)
             train_count += len(targets)
 
-        model.eval()
-        validation_total = 0.0
-        validation_count = 0
-        with torch.inference_mode():
-            for weather, history, targets in validation_loader:
-                weather = weather.to(device, non_blocking=pin_memory)
-                history = history.to(device, non_blocking=pin_memory)
-                targets = targets.to(device, non_blocking=pin_memory)
-                with amp_context(use_amp):
-                    predicted = temporal_rollout_forward(
-                        model, weather, history, targets, 0.0
-                    )
-                    loss = criterion(predicted, targets)
-                validation_total += float(loss) * len(targets)
-                validation_count += len(targets)
-        validation_mse = validation_total / validation_count
+        validation_mse = evaluate_recursive_mse(
+            model,
+            validation_loader,
+            criterion,
+            device,
+            use_amp,
+            pin_memory,
+        )
         row = {
             "epoch": float(epoch),
             "teacher_forcing_ratio": teacher_ratio,
@@ -330,29 +410,15 @@ def main() -> None:
         print(row, flush=True)
         if validation_mse < best - 1e-8:
             best = validation_mse
+            best_epoch = epoch
             stale = 0
-            torch.save(
-                {
-                    **checkpoint,
-                    "model_state_dict": model.state_dict(),
-                    "rollout_training": {
-                        "base_model_type": args.model_type,
-                        "rollout_steps": args.rollout_steps,
-                        "teacher_forcing_schedule": "linear 1 to 0",
-                        "frozen_atmosphere_encoder": True,
-                        "selection_metric": (
-                            f"{args.validation_year} recursive rollout MSE"
-                        ),
-                        "train_samples": len(train_origins),
-                        "validation_samples": len(validation_origins),
-                        "seed": args.seed,
-                    },
-                },
-                best_path,
-            )
+            save_best_checkpoint(fine_tuned=True)
         else:
-            stale += 1
-            if stale >= args.patience:
+            if teacher_ratio <= 0:
+                stale += 1
+            else:
+                stale = 0
+            if teacher_ratio <= 0 and stale >= args.patience:
                 print(f"early stopping at epoch {epoch}", flush=True)
                 break
 
@@ -376,13 +442,20 @@ def main() -> None:
         "device": str(device),
         "amp": use_amp,
         "rollout_steps": args.rollout_steps,
+        "teacher_forcing_epochs": args.teacher_forcing_epochs,
         "train_samples": len(train_origins),
         "validation_samples": len(validation_origins),
+        "base_validation_scaled_mse": base_validation_mse,
+        "base_validation_rmse_cm": base_validation_rmse_cm,
         "best_validation_scaled_mse": best,
+        "best_validation_rmse_cm": float(np.sqrt(best) * surge_scale * 100),
+        "best_epoch": best_epoch,
+        "fine_tuned_improved_over_base": best_epoch > 0,
     }
     (output / "training_metadata.json").write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    print(json.dumps(metadata, ensure_ascii=False, indent=2), flush=True)
     print(f"checkpoint: {best_path}", flush=True)
 
 

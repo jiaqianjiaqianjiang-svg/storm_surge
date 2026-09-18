@@ -15,7 +15,10 @@ from src.xiamen_forecast.prepare_xiamen import resolve_era5_files
 from src.xiamen_forecast.rolling_diagnostics import display_name
 from src.xiamen_forecast.tide_quality_control import quality_control
 from src.xiamen_forecast.train_rollout_cnn import rollout_forward, rollout_origins
-from src.xiamen_forecast.train_rollout_temporal import temporal_rollout_forward
+from src.xiamen_forecast.train_rollout_temporal import (
+    scheduled_teacher_ratio,
+    temporal_rollout_forward,
+)
 from src.xiamen_forecast.train_xiamen import load_prepared
 
 
@@ -129,6 +132,13 @@ def test_temporal_rollout_does_not_use_targets_without_teacher_forcing() -> None
         )
     assert torch.allclose(first, second)
     assert display_name("cnn_gru_rollout6") == "CNN-GRU rollout-6"
+
+
+def test_teacher_forcing_reaches_zero_before_early_stopping() -> None:
+    assert scheduled_teacher_ratio(1, 5) == 1.0
+    assert scheduled_teacher_ratio(3, 5) == 0.5
+    assert scheduled_teacher_ratio(5, 5) == 0.0
+    assert scheduled_teacher_ratio(8, 5) == 0.0
 
 
 def test_rollout_origins_respect_year_and_complete_windows() -> None:
