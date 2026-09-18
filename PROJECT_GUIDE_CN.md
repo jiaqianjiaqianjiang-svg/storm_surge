@@ -21,7 +21,16 @@ GitHub：`git@github.com:jiaqianjiaqianjiang-svg/storm_surge.git`
 
 这里的 72 小时实验使用未来时次的 ERA5 再分析真值，科学上应称为**已知未来大气强迫条件下的历史回算**，不能直接称为实时业务预报。
 
-## 2. 仓库、电脑与数据分别在哪里
+## 2. 四台电脑、代码和数据分别在哪里
+
+本项目目前涉及四台电脑。它们承担的任务不同，后续安排实验前必须先确认任务应该在哪台电脑执行。
+
+| 电脑 | 当前职责 | 主要项目 | 大型数据状态 |
+|---|---|---|---|
+| MacBook Air | 代码整理、文档、Git 和精简结果检查 | 全项目协调 | 不保存厦门大数据 |
+| 个人 Windows 笔记本 | 加勒比数据处理与实验 | Prickly Bay 短时预报 | 保存加勒比数据和运行产物 |
+| 实验室公共 Windows 电脑 | 厦门大型数据处理与 GPU 实验 | 厦门短时预报 | 当前保存厦门数据和完整产物 |
+| 个人 Windows 台式机 | 未来计算与厦门数据备份候选 | 暂未正式启用 | 后续可能从公共电脑迁入厦门数据 |
 
 ### 2.1 Mac 上的代码仓库
 
@@ -31,7 +40,32 @@ GitHub：`git@github.com:jiaqianjiaqianjiang-svg/storm_surge.git`
 
 Mac 主要用于整理代码、查看结果、编写文档和提交 GitHub，不保存厦门的大型原始数据。
 
-### 2.2 实验室 Windows 电脑上的代码仓库
+### 2.2 个人 Windows 笔记本
+
+这台电脑负责加勒比 Prickly Bay 项目。已知使用过的代码位置为：
+
+```text
+E:\AAAqian\code\storm_surge_clean
+```
+
+加勒比 ERA5 数据目录为：
+
+```text
+F:\data\ERA5-Caribbean\Regional_Union
+```
+
+它主要保存和运行：
+
+- Prickly Bay 2011—2018 年验潮与 ERA5 数据；
+- 加勒比预处理结果；
+- 一步、直接24小时、滚动预测和 ERA5 消融实验；
+- 加勒比 `outputs/`、`models/` 和模型权重。
+
+加勒比和厦门的数据、处理结果及模型权重相互独立，不能因为盘符都叫 `F:` 就认为它们在同一块硬盘或同一台电脑上。
+
+### 2.3 实验室公共 Windows 电脑
+
+这台电脑当前负责厦门项目，因为厦门数据体积较大，并且该电脑配有 RTX 4090 D。代码仓库位置为：
 
 ```text
 H:\02_代码与模型\蒋佳倩_2026-2029_软件工程硕士\storm_surge
@@ -52,7 +86,7 @@ CUDA：12.8，可用
 GPU：NVIDIA GeForce RTX 4090 D
 ```
 
-### 2.3 厦门原始数据位置
+厦门原始数据位置如下。
 
 验潮数据：
 
@@ -68,17 +102,54 @@ F:\ERA5-NEW\Xiamen\xiamen_v10_1970_1997.nc
 F:\ERA5-NEW\Xiamen\xiamen_slp_1970_1997.nc
 ```
 
-这些原始数据体积很大，只在实验室数据盘保存，不上传 GitHub。程序读取原文件并将处理结果写入项目自己的 `outputs/`，不会修改原始 NetCDF 或 GESLA 文件。
+这些原始数据目前只在实验室公共电脑的数据盘保存，不上传 GitHub。程序读取原文件并将处理结果写入项目自己的 `outputs/`，不会修改原始 NetCDF 或 GESLA 文件。
 
-### 2.4 加勒比数据
+这台电脑主要执行：
 
-加勒比正式站点是 Grenada 的 Prickly Bay，ERA5 数据目录在原实验电脑中配置为：
+- 厦门 1970—1997 年数据准备和审计；
+- 厦门五种神经网络训练；
+- CNN-GRU 多步递归微调；
+- 1—72 小时滚动诊断；
+- 保存厦门完整 `outputs/`、`models/` 和 checkpoint；
+- 导出精简结果并上传 GitHub。
+
+因为这是公共电脑，厦门原始数据、处理数据、模型权重和关键结果不能只保留这一份。
+
+### 2.4 个人 Windows 台式机
+
+这台电脑目前还没有正式承担项目任务，代码目录、Conda 环境、GPU 和数据目录尚未登记。后续可能把实验室公共电脑上的厦门数据和运行产物迁移过来。
+
+建议未来把它规划为：
+
+- 厦门大型数据的第二份本地备份；
+- 厦门后续多随机种子、1997 独立测试等计算任务的运行机；
+- 公共电脑不可用时的替代计算环境；
+- 长期保存 `outputs/`、`models/` 和最终实验档案。
+
+迁移前先确认台式机磁盘容量、GPU、CUDA 和 Conda 环境。大型数据应通过移动硬盘或局域网复制，并用文件数量、总大小和校验值确认完整性，不通过 GitHub 传输。
+
+### 2.5 四台电脑的协作原则
 
 ```text
-F:\data\ERA5-Caribbean\Regional_Union
+Mac
+  负责代码、文档、GitHub和精简结果审核
+
+个人Windows笔记本
+  负责加勒比原始数据、模型和实验产物
+
+实验室公共Windows电脑
+  当前负责厦门原始数据、模型和GPU实验
+
+个人Windows台式机
+  未来承接厦门数据备份和后续计算
+
+GitHub
+  在四台电脑之间同步代码、文档和小型结果，不同步原始数据与大型权重
 ```
 
-加勒比和厦门的数据、预处理结果、模型权重与实验目录彼此独立，不能交叉使用。
+任何电脑开始工作前，都先执行 `git status`，确认没有未提交修改，再拉取当前正式分支。任何实验结束后，都应把精简指标和报告导出到 GitHub，同时把完整结果保存在对应的数据电脑上。
+
+大型文件至少应有两份副本。当前最需要补强的是厦门资料：它们现在主要位于实验室公共电脑，后续应复制到个人 Windows 台式机或独立硬盘。
 
 ## 3. 仓库结构
 
@@ -489,10 +560,18 @@ python -m src.xiamen_forecast.export_final_results
 
 ## 8. GitHub 更新方式
 
-实验室电脑更新代码：
+实验室公共电脑更新代码：
 
 ```bat
 cd /d "H:\02_代码与模型\蒋佳倩_2026-2029_软件工程硕士\storm_surge"
+git checkout codex/xiamen-short-term-parity
+git pull
+```
+
+个人 Windows 笔记本更新代码时，先进入该电脑上实际存在的仓库目录。历史位置是：
+
+```bat
+cd /d "E:\AAAqian\code\storm_surge_clean"
 git checkout codex/xiamen-short-term-parity
 git pull
 ```
@@ -504,6 +583,14 @@ cd /Users/jjq/Documents/storm_surge/storm_surge_clean
 git checkout codex/xiamen-short-term-parity
 git pull
 ```
+
+个人 Windows 台式机第一次启用时，应从 GitHub 重新克隆当前正式分支，不要复制另一台电脑的整个 `.git` 目录：
+
+```bat
+git clone --branch codex/xiamen-short-term-parity git@github.com:jiaqianjiaqianjiang-svg/storm_surge.git storm_surge
+```
+
+台式机的最终代码路径、数据路径和 Conda 环境确定后，应补充到本文档。
 
 大型原始数据、`outputs/`、`models/`、checkpoint 和大型逐时预测通常被 `.gitignore` 排除。GitHub 主要保存代码、文档和经过筛选的小型结果摘要，不能代替数据盘备份。
 
