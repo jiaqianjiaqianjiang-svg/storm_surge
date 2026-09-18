@@ -10,6 +10,7 @@ from src.xiamen_forecast.dataset_builder import build_year_datasets
 from src.xiamen_forecast.compare_models import collect_model_metrics
 from src.xiamen_forecast.era5_loader import load_era5_files
 from src.xiamen_forecast.evaluate import calculate_detailed_metrics
+from src.xiamen_forecast.export_final_results import build_summary
 from src.xiamen_forecast.forecast_model import create_model
 from src.xiamen_forecast.prepare_xiamen import resolve_era5_files
 from src.xiamen_forecast.rolling_diagnostics import display_name
@@ -182,6 +183,37 @@ def test_model_comparison_collects_formal_and_baseline_metrics(tmp_path: Path) -
     with pytest.warns(UserWarning):
         frame = collect_model_metrics(model_root, baseline_dir)
     assert frame.model.tolist() == ["persistence", "ridge", "cnn"]
+
+
+def test_final_result_summary_reports_rollout_gain(tmp_path: Path) -> None:
+    validation = pd.DataFrame(
+        {
+            "model": ["ridge", "cnn_gru"],
+            "rmse_cm": [4.6, 3.4],
+            "mae_cm": [3.5, 2.7],
+            "pearson_r": [0.98, 0.99],
+            "skill_score_vs_ridge": [0.0, 0.45],
+        }
+    )
+    rolling = pd.DataFrame(
+        {
+            "lead_hours": [1, 6],
+            "cnn_gru": [3.4, 6.9],
+            "cnn_gru_rollout6": [3.3, 6.3],
+        }
+    )
+    metadata = {
+        "base_model_type": "cnn_gru",
+        "base_validation_rmse_cm": 6.15,
+        "best_validation_rmse_cm": 5.65,
+        "best_epoch": 3,
+        "fine_tuned_improved_over_base": True,
+    }
+    build_summary(tmp_path, validation, rolling, metadata, 1996, 42)
+    summary = (tmp_path / "RESULTS_SUMMARY.md").read_text(encoding="utf-8")
+    assert "cnn_gru" in summary
+    assert "rmse_reduction_percent" in summary
+    assert "Improved over base: True" in summary
 
 
 def test_prepared_directory_loads_as_memory_maps(tmp_path: Path) -> None:

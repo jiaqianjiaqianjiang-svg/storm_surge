@@ -100,6 +100,20 @@ python -m src.xiamen_forecast.rolling_diagnostics --device cuda --rollout-checkp
 
 滚动实验使用未来时次的 ERA5 再分析场，因此应称为“已知未来大气强迫条件下的历史回算”，不能表述为业务实时预报。1997 测试年在模型和方案确定前保持封存。
 
+8. 滚动实验完成后，导出可安全提交到Git的小型结果包。脚本只收集指标、摘要和关键图片，不复制模型权重、原始数据或大型逐时预测表：
+
+```powershell
+python -m src.xiamen_forecast.export_final_results
+```
+
+结果保存到仓库根目录的 `reports/experiment_results/xiamen_short_term_1996_seed42/`。确认内容后，可在当前目录执行：
+
+```powershell
+git -C ..\..\.. add reports/experiment_results/xiamen_short_term_1996_seed42
+git -C ..\..\.. commit -m "Archive Xiamen short-term forecast results"
+git -C ..\..\.. push
+```
+
 这一版已经接入 CNN、CNN-LSTM、CNN-GRU、TCN、Transformer，以及普通CNN和时序模型的递归微调。加勒比项目中的直接 24 小时表格模型、ERA5 消融扩展和物理残差融合尚未直接复制到厦门；应先完成上述统一模型对比，再根据 1996 验证结果决定是否迁移。
 
 ## 测试

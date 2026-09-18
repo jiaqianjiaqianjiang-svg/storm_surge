@@ -64,3 +64,7 @@ tools/realtime_crawlers/output/
 *_测试结果.ipynb
 *_长期运行结果.ipynb
 *_全省一轮结果.ipynb
+
+# Compact, curated experiment summaries are safe to version.
+!reports/experiment_results/
+!reports/experiment_results/**
