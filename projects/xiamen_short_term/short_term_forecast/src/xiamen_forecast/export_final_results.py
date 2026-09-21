@@ -22,6 +22,31 @@ MODEL_NAMES = (
 )
 
 
+def copy_journal_figures(source: Path, destination: Path) -> list[Path]:
+    """Copy only curated journal outputs, never raw prediction tables."""
+
+    if not source.is_dir():
+        print(f"warning: journal figure directory missing: {source}")
+        return []
+    copied: list[Path] = []
+    candidates = sorted(source.glob("fig*.png"))
+    for name in (
+        "figure_manifest.csv",
+        "FIGURE_GUIDE.md",
+        "peak_metrics.json",
+        "residual_statistics.json",
+    ):
+        path = source / name
+        if path.is_file():
+            candidates.append(path)
+    destination.mkdir(parents=True, exist_ok=True)
+    for path in candidates:
+        target = destination / path.name
+        shutil.copy2(path, target)
+        copied.append(target)
+    return copied
+
+
 def repository_root(start: Path) -> Path:
     for candidate in (start, *start.parents):
         if (candidate / ".git").exists():
@@ -151,6 +176,12 @@ def main() -> None:
     model_root = MODULE_ROOT / "models" / args.station
     formal = model_root / f"formal_seed{args.seed}"
     rollout = formal / "cnn_gru_rollout6"
+    journal_figures = (
+        MODULE_ROOT
+        / "outputs"
+        / "journal_figures"
+        / f"{args.station}_{args.validation_year}_seed{args.seed}"
+    )
 
     validation_source = comparison / "validation_model_metrics.csv"
     rolling_source = rolling / "rolling_rmse_table.csv"
@@ -189,6 +220,11 @@ def main() -> None:
             formal / model_name / "metrics.json",
             destination / f"metrics_{model_name}.json",
         )
+    copied_figures = copy_journal_figures(
+        journal_figures, destination / "journal_figures"
+    )
+    if copied_figures:
+        print(f"Copied {len(copied_figures)} journal figure files")
 
     validation_metrics = pd.read_csv(validation_source)
     rolling_rmse = pd.read_csv(rolling_source)

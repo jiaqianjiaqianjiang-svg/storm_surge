@@ -114,6 +114,32 @@ git -C ..\..\.. commit -m "Archive Xiamen short-term forecast results"
 git -C ..\..\.. push
 ```
 
+9. 在实验室电脑上生成厦门正式汇报和论文图。该命令只读取已经存在的指标、预测CSV和图片，不加载大型ERA5数据、不读取模型权重，也不会重新训练：
+
+```powershell
+python -m src.short_term_forecast.journal_figures.make_xiamen_journal_figures
+```
+
+默认输出到：
+
+```text
+outputs/journal_figures/xiamen_1996_seed42/
+```
+
+其中包括一步模型对比、RMSE随提前量变化、CNN-GRU递归微调收益、Top 5%强增水与快速上涨指标、训练过程、验证散点、不同提前量滚动散点、残差诊断、峰值分析和已有强事件图。`figure_manifest.csv`记录每张图的状态；缺少某个预测CSV时只跳过对应图，不影响其他图。
+
+如需中文图题：
+
+```powershell
+python -m src.short_term_forecast.journal_figures.make_xiamen_journal_figures --language zh
+```
+
+图片确认无误后，再运行一次结果导出。导出脚本会把`fig*.png`、manifest、图件说明和诊断JSON复制到Git可提交的精简结果包，不复制逐时预测表：
+
+```powershell
+python -m src.xiamen_forecast.export_final_results
+```
+
 这一版已经接入 CNN、CNN-LSTM、CNN-GRU、TCN、Transformer，以及普通CNN和时序模型的递归微调。加勒比项目中的直接 24 小时表格模型、ERA5 消融扩展和物理残差融合尚未直接复制到厦门；应先完成上述统一模型对比，再根据 1996 验证结果决定是否迁移。
 
 ## 测试

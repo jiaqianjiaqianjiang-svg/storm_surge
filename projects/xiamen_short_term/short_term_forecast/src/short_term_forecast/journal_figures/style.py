@@ -25,9 +25,13 @@ MODEL_COLORS = {
     "observed": "black",
     "observation": "black",
     "persistence": "#E69F00",
+    "ridge": "#666666",
+    "surge_mlp": "#56B4E9",
+    "era5_cnn": "#CC79A7",
     "cnn": "#0072B2",
     "cnn_lstm": "#009E73",
     "cnn_gru": "#6A3D9A",
+    "cnn_gru_rollout6": "#B2182B",
     "tcn": "#D55E00",
     "transformer": "#8B5A2B",
     "forecast": "#0072B2",
@@ -37,9 +41,13 @@ MODEL_COLORS = {
 MODEL_LABELS = {
     "observed": "Observed",
     "persistence": "Persistence",
+    "ridge": "Ridge",
+    "surge_mlp": "Surge MLP",
+    "era5_cnn": "ERA5 CNN",
     "cnn": "CNN",
     "cnn_lstm": "CNN-LSTM",
     "cnn_gru": "CNN-GRU",
+    "cnn_gru_rollout6": "CNN-GRU rollout-6",
     "tcn": "TCN",
     "transformer": "Transformer",
     "forecast": "Forecast",
@@ -56,16 +64,25 @@ def _font_available(name: str) -> bool:
     return False
 
 
-def resolve_font() -> str:
-    """Return Arial when available, otherwise DejaVu Sans."""
+def resolve_font(language: str = "en") -> str:
+    """Return a readable installed font for English or Chinese labels."""
 
-    return "Arial" if _font_available("Arial") else "DejaVu Sans"
+    candidates = ["Arial", "DejaVu Sans"]
+    if language == "zh":
+        candidates = [
+            "Microsoft YaHei",
+            "PingFang SC",
+            "Noto Sans CJK SC",
+            "SimHei",
+            *candidates,
+        ]
+    return next((name for name in candidates if _font_available(name)), "DejaVu Sans")
 
 
 def setup_journal_style(font_size: float = 8.0, language: str = "en") -> None:
     """Apply consistent matplotlib rcParams for journal figures."""
 
-    font = resolve_font()
+    font = resolve_font(language)
     plt.rcParams.update(
         {
             "font.family": font,

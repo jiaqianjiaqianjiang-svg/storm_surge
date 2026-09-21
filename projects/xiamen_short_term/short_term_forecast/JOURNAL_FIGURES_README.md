@@ -2,6 +2,16 @@
 
 这些脚本用于把已经完成的短时风暴潮实验结果整理成期刊级图片。它们不会重新训练模型，也不会重新构建 ERA/GESLA 样本，只读取已有的 `metrics.json`、预测 CSV 和滚动预报 CSV。
 
+## 厦门正式实验
+
+已经完成的厦门1996验证实验使用专用入口。在厦门短时预报项目目录运行：
+
+```powershell
+python -m src.short_term_forecast.journal_figures.make_xiamen_journal_figures
+```
+
+程序自动寻找seed 42模型比较、滚动诊断、递归训练历史、验证预测和强事件图，只读取已有结果，不重新训练，也不加载大型ERA5数据。默认输出目录为`outputs/journal_figures/xiamen_1996_seed42/`。运行后先查看`figure_manifest.csv`和`FIGURE_GUIDE.md`。
+
 ## 运行位置
 
 建议在保存实验结果的远程实验室 Windows 电脑上运行。当前 Mac 本地没有真实结果，因此不要在本地扫描 `outputs/` 判断实验是否存在。

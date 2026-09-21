@@ -8,6 +8,7 @@ import pandas as pd
 
 from src.short_term_forecast.journal_figures import io_utils
 from src.short_term_forecast.journal_figures.make_all_journal_figures import make_all_journal_figures
+from src.short_term_forecast.journal_figures.make_xiamen_journal_figures import make_xiamen_journal_figures
 from src.short_term_forecast.journal_figures.plot_event_comparison import plot_event_comparison
 from src.short_term_forecast.journal_figures.plot_peak_analysis import plot_peak_analysis
 from src.short_term_forecast.journal_figures.plot_residual_diagnostics import plot_residual_diagnostics
@@ -18,6 +19,7 @@ from src.short_term_forecast.journal_figures.plot_window_comparison import (
     plot_window_timeseries,
     select_window_experiments,
 )
+from src.xiamen_forecast.export_final_results import copy_journal_figures
 
 
 def _write_prediction_csv(path: Path, n: int = 24, meters: bool = True, rolling: bool = False, persistence: bool = False) -> None:
@@ -137,3 +139,136 @@ def test_make_all_journal_figures_manifest(tmp_path: Path) -> None:
     assert "ERA5_1985_1985_t8_h1" not in metric_sources
     assert not list(figures.glob("*.pdf"))
     assert not list(figures.glob("*.svg"))
+
+
+def test_make_xiamen_journal_figures_from_formal_outputs(tmp_path: Path) -> None:
+    project = tmp_path / "short_term_forecast"
+    comparison = project / "outputs" / "experiments" / "xiamen" / "model_comparison"
+    rolling = project / "outputs" / "experiments" / "xiamen" / "rolling_1996_seed42"
+    baselines = project / "models" / "xiamen" / "baselines"
+    formal = project / "models" / "xiamen" / "formal_seed42"
+    for path in (comparison, rolling, baselines, formal):
+        path.mkdir(parents=True, exist_ok=True)
+
+    models = [
+        "persistence", "ridge", "surge_mlp", "era5_cnn", "cnn",
+        "cnn_lstm", "cnn_gru", "tcn", "transformer",
+    ]
+    pd.DataFrame(
+        {
+            "model": models,
+            "n": 120,
+            "pearson_r": np.linspace(0.82, 0.98, len(models)),
+            "rmse_cm": np.linspace(12.0, 3.8, len(models)),
+            "mae_cm": np.linspace(9.0, 2.8, len(models)),
+            "bias_cm": np.linspace(-0.4, 0.4, len(models)),
+        }
+    ).to_csv(comparison / "validation_model_metrics.csv", index=False)
+
+    leads = np.array([1, 3, 6, 12, 24, 48, 72])
+    rolling_models = [*models, "cnn_gru_rollout6"]
+    wide = {"lead_hours": leads, "valid_samples": 60}
+    long_rows = []
+    for model_index, model in enumerate(rolling_models):
+        values = 3.0 + 0.12 * leads + model_index * 0.15
+        if model == "cnn_gru_rollout6":
+            values = 2.8 + 0.08 * leads
+        wide[model] = values
+        for lead, value in zip(leads, values):
+            long_rows.append(
+                {
+                    "lead_hours": lead,
+                    "model": model,
+                    "rmse_cm": value,
+                    "top5_rmse_cm": value * 1.4,
+                    "rapid_rise_rmse_cm": value * 1.2,
+                }
+            )
+    pd.DataFrame(wide).to_csv(rolling / "rolling_rmse_table.csv", index=False)
+    pd.DataFrame(long_rows).to_csv(rolling / "rolling_metrics_long.csv", index=False)
+
+    prediction_rows = []
+    for lead in leads:
+        observed = 0.25 + 0.12 * np.sin(np.linspace(0, 2 * np.pi, 60))
+        predicted = observed + lead / 10000.0 + np.linspace(-0.01, 0.01, 60)
+        for obs, pred in zip(observed, predicted):
+            prediction_rows.append(
+                {
+                    "lead_hours": lead,
+                    "observed_m": obs,
+                    "cnn_gru_rollout6_m": pred,
+                }
+            )
+    pd.DataFrame(prediction_rows).to_csv(
+        rolling / "rolling_predictions_selected_leads.csv", index=False
+    )
+
+    times = pd.date_range("1996-01-01", periods=120, freq="h")
+    observed = 0.2 + 0.1 * np.sin(np.linspace(0, 5 * np.pi, 120))
+    pd.DataFrame(
+        {
+            "datetime": times,
+            "observed_m": observed,
+            "persistence_m": observed + 0.03,
+            "ridge_m": observed + np.linspace(-0.02, 0.02, 120),
+        }
+    ).to_csv(baselines / "validation_baseline_predictions.csv", index=False)
+    for model, amplitude in (("cnn_lstm", 0.014), ("cnn_gru", 0.012)):
+        model_dir = formal / model
+        model_dir.mkdir(parents=True)
+        pd.DataFrame(
+            {
+                "datetime": times,
+                "observed_m": observed,
+                "predicted_m": observed + amplitude * np.cos(np.linspace(0, 4 * np.pi, 120)),
+            }
+        ).to_csv(model_dir / "validation_predictions.csv", index=False)
+
+    rollout = formal / "cnn_gru_rollout6"
+    rollout.mkdir(parents=True)
+    pd.DataFrame(
+        {
+            "epoch": np.arange(6),
+            "teacher_forcing_ratio": [0, 1, 0.75, 0.5, 0.25, 0],
+            "train_scaled_mse": [np.nan, 0.08, 0.07, 0.06, 0.055, 0.052],
+            "validation_recursive_scaled_mse": [0.09, 0.075, 0.068, 0.064, 0.066, 0.069],
+            "validation_recursive_rmse_cm": [6.2, 5.8, 5.5, 5.3, 5.4, 5.6],
+        }
+    ).to_csv(rollout / "loss_history.csv", index=False)
+
+    output = tmp_path / "figures"
+    manifest = make_xiamen_journal_figures(project_root=project, output_dir=output)
+    expected = {
+        "fig01_one_step_model_comparison",
+        "fig02_rmse_by_lead",
+        "fig03_rollout_improvement",
+        "fig04_extreme_and_rapid_rise_metrics",
+        "fig05_rollout_training",
+        "fig06_validation_scatter",
+        "fig07_rollout_scatter_by_lead",
+        "fig08_cnn_gru_residual_diagnostics",
+        "fig09_cnn_gru_peak_analysis",
+    }
+    assert expected.issubset(set(manifest.loc[manifest.status == "ok", "figure_name"]))
+    assert all((output / f"{name}.png").is_file() for name in expected)
+    assert (output / "figure_manifest.csv").is_file()
+    assert (output / "FIGURE_GUIDE.md").is_file()
+
+
+def test_copy_journal_figures_excludes_prediction_tables(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    destination = tmp_path / "destination"
+    source.mkdir()
+    (source / "fig01_summary.png").write_bytes(b"png")
+    (source / "figure_manifest.csv").write_text("status\nok\n", encoding="utf-8")
+    (source / "FIGURE_GUIDE.md").write_text("guide", encoding="utf-8")
+    (source / "rolling_predictions_selected_leads.csv").write_text("large", encoding="utf-8")
+
+    copied = copy_journal_figures(source, destination)
+
+    assert {path.name for path in copied} == {
+        "fig01_summary.png",
+        "figure_manifest.csv",
+        "FIGURE_GUIDE.md",
+    }
+    assert not (destination / "rolling_predictions_selected_leads.csv").exists()
