@@ -144,6 +144,36 @@ python -m src.xiamen_forecast.export_final_results
 
 ## 测试
 
+Mac 本地已建立独立环境 `jjq`，位置为：
+
+```text
+/Users/jjq/Documents/storm_surge/.venvs/jjq
+```
+
+以后在 Mac 上检查代码、运行单元测试或生成轻量图件时，先执行：
+
+```bash
+source /Users/jjq/Documents/storm_surge/.venvs/jjq/bin/activate
+cd /Users/jjq/Documents/storm_surge/storm_surge_clean/projects/xiamen_short_term/short_term_forecast
+python -m compileall -q src
+python -m pytest tests -q
+```
+
+环境包含 PyTorch、NumPy、Pandas、SciPy、scikit-learn、Matplotlib、xarray、NetCDF4、UTide、cfgrib/eccodes、CDS API、Jupyter 和 pytest。当前 Mac 的 PyTorch 不支持 MPS，因此本地主要用于测试和轻量结果处理；正式模型训练继续使用实验室电脑的 RTX 4090。退出环境使用 `deactivate`。
+
+重新建立该环境时可执行：
+
+```bash
+python3 -m venv /Users/jjq/Documents/storm_surge/.venvs/jjq
+source /Users/jjq/Documents/storm_surge/.venvs/jjq/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt
+```
+
+实验室 Windows 电脑继续使用已有的 Conda `jjq` 环境；两个环境名称相同，但位于不同电脑，互不影响。
+
+通用测试命令：
+
 ```powershell
 python -m compileall -q src
 python -m pytest tests -q
