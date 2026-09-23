@@ -1,0 +1,17 @@
+{
+  "test_year_loaded": false,
+  "base_model_type": "cnn_gru",
+  "base_checkpoint": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\xiamen\\formal_seed42\\cnn_gru\\best_model.pth",
+  "device": "cuda",
+  "amp": true,
+  "rollout_steps": 6,
+  "teacher_forcing_epochs": 5,
+  "train_samples": 227102,
+  "validation_samples": 8779,
+  "base_validation_scaled_mse": 0.07193184951461384,
+  "base_validation_rmse_cm": 6.151523588993341,
+  "best_validation_scaled_mse": 0.06075748211482158,
+  "best_validation_rmse_cm": 5.653559459168536,
+  "best_epoch": 3,
+  "fine_tuned_improved_over_base": true
+}

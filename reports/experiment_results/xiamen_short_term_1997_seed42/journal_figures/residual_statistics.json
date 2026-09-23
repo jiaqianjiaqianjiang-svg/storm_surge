@@ -1,0 +1,10 @@
+{
+  "mean_error": -0.38380457748395796,
+  "median_error": -0.4047155,
+  "standard_deviation": 3.4594293465684425,
+  "skewness": 0.1568701504794577,
+  "kurtosis": 1.5798647637247951,
+  "lag_1_autocorrelation": -0.01837753876392036,
+  "lag_24_autocorrelation": 0.026774277816333177,
+  "n": 8752
+}
