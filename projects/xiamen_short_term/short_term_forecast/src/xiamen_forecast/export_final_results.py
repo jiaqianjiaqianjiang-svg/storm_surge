@@ -57,7 +57,14 @@ def repository_root(start: Path) -> Path:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--station", default="xiamen")
-    parser.add_argument("--validation-year", type=int, default=1996)
+    parser.add_argument(
+        "--evaluation-year",
+        "--validation-year",
+        dest="evaluation_year",
+        type=int,
+        default=1996,
+    )
+    parser.add_argument("--split", choices=("validation", "test"))
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output-dir", type=Path)
     return parser.parse_args()
@@ -103,6 +110,7 @@ def build_summary(
     rollout_metadata: dict[str, object],
     validation_year: int,
     seed: int,
+    split: str = "validation",
 ) -> None:
     ranked = validation_metrics.sort_values("rmse_cm").copy()
     ranked.insert(0, "rank", range(1, len(ranked) + 1))
@@ -128,13 +136,14 @@ def build_summary(
 
 ## Experiment
 
-- Validation year: {validation_year}
+- Evaluation year: {validation_year}
+- Dataset split: {split}
 - Random seed: {seed}
 - Input window: 24 hours
 - Rolling evaluation: known future ERA5 forcing; historical hindcast, not an operational forecast
 - Test-year observations were not loaded during rollout fine-tuning
 
-## One-Step Validation Ranking
+## One-Step {split.title()} Ranking
 
 {markdown_table(ranked)}
 
@@ -161,18 +170,20 @@ and model weights remain excluded from Git.
 
 def main() -> None:
     args = parse_args()
+    evaluation_year = args.evaluation_year
+    split = args.split or ("validation" if evaluation_year == 1996 else "test")
     repository = repository_root(MODULE_ROOT)
     destination = args.output_dir or (
         repository
         / "reports"
         / "experiment_results"
-        / f"xiamen_short_term_{args.validation_year}_seed{args.seed}"
+        / f"xiamen_short_term_{evaluation_year}_seed{args.seed}"
     )
     destination.mkdir(parents=True, exist_ok=True)
 
     experiment_root = MODULE_ROOT / "outputs" / "experiments" / args.station
     comparison = experiment_root / "model_comparison"
-    rolling = experiment_root / f"rolling_{args.validation_year}_seed{args.seed}"
+    rolling = experiment_root / f"rolling_{evaluation_year}_seed{args.seed}"
     model_root = MODULE_ROOT / "models" / args.station
     formal = model_root / f"formal_seed{args.seed}"
     rollout = formal / "cnn_gru_rollout6"
@@ -180,13 +191,13 @@ def main() -> None:
         MODULE_ROOT
         / "outputs"
         / "journal_figures"
-        / f"{args.station}_{args.validation_year}_seed{args.seed}"
+        / f"{args.station}_{evaluation_year}_seed{args.seed}"
     )
 
-    validation_source = comparison / "validation_model_metrics.csv"
+    validation_source = comparison / f"{split}_model_metrics.csv"
     rolling_source = rolling / "rolling_rmse_table.csv"
     rollout_metadata_source = rollout / "training_metadata.json"
-    copy_required(validation_source, destination / "validation_model_metrics.csv")
+    copy_required(validation_source, destination / f"{split}_model_metrics.csv")
     copy_required(rolling_source, destination / "rolling_rmse_table.csv")
     copy_required(
         rollout_metadata_source, destination / "rollout_training_metadata.json"
@@ -194,8 +205,8 @@ def main() -> None:
 
     selected_optional = (
         (
-            comparison / "validation_model_comparison.png",
-            "validation_model_comparison.png",
+            comparison / f"{split}_model_comparison.png",
+            f"{split}_model_comparison.png",
         ),
         (rolling / "rolling_metrics_long.csv", "rolling_metrics_long.csv"),
         (rolling / "rmse_vs_lead.png", "rmse_vs_lead.png"),
@@ -236,8 +247,9 @@ def main() -> None:
         validation_metrics,
         rolling_rmse,
         rollout_metadata,
-        args.validation_year,
+        evaluation_year,
         args.seed,
+        split,
     )
     print(f"Git-safe result package: {destination}")
     print("Review it, then commit only this reports/experiment_results directory.")

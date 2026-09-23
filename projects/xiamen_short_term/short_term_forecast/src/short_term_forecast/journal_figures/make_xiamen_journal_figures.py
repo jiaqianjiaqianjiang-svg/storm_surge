@@ -83,6 +83,7 @@ def discover_sources(
     validation_year: int = 1996,
     seed: int = 42,
     result_package: Path | None = None,
+    split: str = "validation",
 ) -> XiamenSources:
     """Locate full laboratory outputs, falling back to the compact Git package."""
 
@@ -105,8 +106,8 @@ def discover_sources(
 
     source = XiamenSources(
         validation_metrics=_first_file(
-            comparison / "validation_model_metrics.csv",
-            package / "validation_model_metrics.csv" if package else None,
+            comparison / f"{split}_model_metrics.csv",
+            package / f"{split}_model_metrics.csv" if package else None,
         ),
         rolling_rmse=_first_file(
             rolling / "rolling_rmse_table.csv",
@@ -121,14 +122,14 @@ def discover_sources(
             package / "rollout_loss_history.csv" if package else None,
         ),
         baseline_predictions=_first_file(
-            model_root / "baselines" / "validation_baseline_predictions.csv"
+            model_root / "baselines" / f"{split}_baseline_predictions.csv"
         ),
         rolling_predictions=_first_file(
             rolling / "rolling_predictions_selected_leads.csv"
         ),
     )
     for model in MODEL_ORDER[2:]:
-        path = _first_file(formal / model / "validation_predictions.csv")
+        path = _first_file(formal / model / f"{split}_predictions.csv")
         if path is not None:
             source.model_predictions[model] = path
 
@@ -586,13 +587,18 @@ def _run_figure(
         rows.append(_manifest_row(name, source, None, "failed", str(exc)))
 
 
-def _write_guide(output_dir: Path, manifest: pd.DataFrame) -> None:
+def _write_guide(
+    output_dir: Path,
+    manifest: pd.DataFrame,
+    evaluation_year: int,
+    split: str,
+) -> None:
     completed = manifest.loc[manifest["status"] == "ok", "figure_name"].tolist()
     skipped = manifest.loc[manifest["status"] != "ok", ["figure_name", "warning"]]
     lines = [
         "# Xiamen journal figure guide",
         "",
-        "These figures use existing 1996 validation and historical-hindcast results. No model was retrained.",
+        f"These figures use existing {evaluation_year} {split} and historical-hindcast results. No model was retrained.",
         "The rolling experiment uses known future ERA5 reanalysis forcing and is not an operational forecast.",
         "",
         "## Completed figures",
@@ -628,20 +634,24 @@ def make_xiamen_journal_figures(
     validation_year: int = 1996,
     seed: int = 42,
     language: str = "en",
+    split: str | None = None,
 ) -> pd.DataFrame:
     project_root = Path(project_root)
+    split = split or ("validation" if validation_year == 1996 else "test")
     output_dir = Path(output_dir) if output_dir else (
         project_root / "outputs" / "journal_figures" / f"{station}_{validation_year}_seed{seed}"
     )
     output_dir.mkdir(parents=True, exist_ok=True)
-    sources = discover_sources(project_root, station, validation_year, seed, result_package)
+    sources = discover_sources(
+        project_root, station, validation_year, seed, result_package, split
+    )
     rows: list[dict[str, str]] = []
 
-    validation = _read_csv(sources.validation_metrics, "validation model metrics")
+    validation = _read_csv(sources.validation_metrics, f"{split} model metrics")
     if validation is not None:
         _run_figure(rows, "fig01_one_step_model_comparison", str(sources.validation_metrics), plot_one_step_summary, validation, output_dir, language)
     else:
-        rows.append(_manifest_row("fig01_one_step_model_comparison", "", None, "skipped", "missing validation metrics"))
+        rows.append(_manifest_row("fig01_one_step_model_comparison", "", None, "skipped", f"missing {split} metrics"))
 
     rolling_rmse = _read_csv(sources.rolling_rmse, "rolling RMSE table")
     if rolling_rmse is not None:
@@ -702,7 +712,7 @@ def make_xiamen_journal_figures(
 
     manifest = pd.DataFrame(rows)
     manifest.to_csv(output_dir / "figure_manifest.csv", index=False, encoding="utf-8-sig")
-    _write_guide(output_dir, manifest)
+    _write_guide(output_dir, manifest, validation_year, split)
     print(manifest.to_string(index=False))
     print(f"Figures: {output_dir}")
     return manifest
@@ -715,6 +725,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--result-package", type=Path)
     parser.add_argument("--station", default="xiamen")
     parser.add_argument("--validation-year", type=int, default=1996)
+    parser.add_argument("--split", choices=("validation", "test"))
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--language", choices=("en", "zh"), default="en")
     return parser.parse_args()
@@ -730,6 +741,7 @@ def main() -> None:
         validation_year=args.validation_year,
         seed=args.seed,
         language=args.language,
+        split=args.split,
     )
 
 

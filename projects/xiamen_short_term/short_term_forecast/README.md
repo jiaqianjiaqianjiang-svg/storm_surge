@@ -100,6 +100,23 @@ python -m src.xiamen_forecast.rolling_diagnostics --device cuda --rollout-checkp
 
 滚动实验使用未来时次的 ERA5 再分析场，因此应称为“已知未来大气强迫条件下的历史回算”，不能表述为业务实时预报。1997 测试年在模型和方案确定前保持封存。
 
+模型方案固定后，运行一次1997独立测试总流程。该入口不会重新训练模型，会依次汇总已有一步测试指标、运行1至72小时滚动回算、生成1997测试图，并导出Git安全结果包：
+
+```powershell
+python -m src.xiamen_forecast.run_final_test --device cuda --language en
+```
+
+1997输出分别保存到：
+
+```text
+outputs/experiments/xiamen/model_comparison/test_model_metrics.csv
+outputs/experiments/xiamen/rolling_1997_seed42/
+outputs/journal_figures/xiamen_1997_seed42/
+仓库根目录/reports/experiment_results/xiamen_short_term_1997_seed42/
+```
+
+如中途失败，可以重复运行同一命令；已有模型权重不会被改写。1997结果只用于最终独立评价，不应再据此选择模型或调整超参数。
+
 8. 滚动实验完成后，导出可安全提交到Git的小型结果包。脚本只收集指标、摘要和关键图片，不复制模型权重、原始数据或大型逐时预测表：
 
 ```powershell

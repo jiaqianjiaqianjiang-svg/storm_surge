@@ -14,6 +14,7 @@ from src.xiamen_forecast.export_final_results import build_summary
 from src.xiamen_forecast.forecast_model import create_model
 from src.xiamen_forecast.prepare_xiamen import resolve_era5_files
 from src.xiamen_forecast.rolling_diagnostics import display_name
+from src.xiamen_forecast.run_final_test import build_commands
 from src.xiamen_forecast.tide_quality_control import quality_control
 from src.xiamen_forecast.train_rollout_cnn import rollout_forward, rollout_origins
 from src.xiamen_forecast.train_rollout_temporal import (
@@ -140,6 +141,13 @@ def test_teacher_forcing_reaches_zero_before_early_stopping() -> None:
     assert scheduled_teacher_ratio(3, 5) == 0.5
     assert scheduled_teacher_ratio(5, 5) == 0.0
     assert scheduled_teacher_ratio(8, 5) == 0.0
+
+
+def test_final_test_runner_uses_test_split_and_1997(tmp_path: Path) -> None:
+    commands = build_commands(1997, 42, "cuda", "en", tmp_path / "model.pth")
+    assert len(commands) == 4
+    assert all("test" in command for command in commands)
+    assert all("1997" in command for command in commands[1:])
 
 
 def test_rollout_origins_respect_year_and_complete_windows() -> None:

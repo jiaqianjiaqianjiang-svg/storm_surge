@@ -1,6 +1,6 @@
 """Recursive Xiamen hindcast diagnostics with known future ERA5 forcing.
 
-This module deliberately loads data only through the selected validation year. It is a
+This module deliberately loads data only through the selected evaluation year. It is a
 diagnostic of one-hour models under perfect atmospheric forcing, not an
 operational forecast.
 """
@@ -68,7 +68,19 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--station", default="xiamen")
     parser.add_argument("--train-start-year", type=int, default=1970)
-    parser.add_argument("--validation-year", type=int, default=1996)
+    parser.add_argument(
+        "--evaluation-year",
+        "--validation-year",
+        dest="evaluation_year",
+        type=int,
+        default=1996,
+        help="Year to evaluate; --validation-year is retained as a compatibility alias.",
+    )
+    parser.add_argument(
+        "--split",
+        choices=("validation", "test"),
+        help="Dataset role. Defaults to validation for 1996 and test otherwise.",
+    )
     parser.add_argument("--input-steps", type=int, default=24)
     parser.add_argument("--max-lead", type=int, default=72)
     parser.add_argument("--batch-size", type=int, default=32)
@@ -469,12 +481,13 @@ def write_report(
             f"- {lead} h：{display_name(row.model)} 最低，RMSE {row.rmse_cm:.3f} cm。"
         )
     table = markdown_table(wide)
-    content = f"""# 厦门 {metadata['validation_year']} 年滚动预报诊断
+    role_zh = "验证集" if metadata["split"] == "validation" else "独立测试集"
+    content = f"""# 厦门 {metadata['evaluation_year']} 年滚动预报诊断
 
 ## 实验边界
 
 - 实验名称：**已知未来大气强迫条件下的历史滚动回算**。
-- 仅加载到验证年 {metadata['validation_year']}，没有读取测试年数据。
+- 本次评价对象为 {metadata['evaluation_year']} 年{role_zh}；程序只加载到该评价年份末，不读取更晚年份数据。
 - 使用已训练的seed 42一步模型，输入窗口24小时，递归到72小时。
 - ERA5使用各未来时次的再分析真值；这只隔离检查模型与递归误差，不能表述为真实业务预报。
 - 岭回归及所有依赖历史增水的神经网络各自回填预测值，没有使用未来真实增水。
@@ -505,6 +518,8 @@ def write_report(
 
 def main() -> None:
     args = parse_args()
+    evaluation_year = args.evaluation_year
+    split = args.split or ("validation" if evaluation_year == 1996 else "test")
     if args.input_steps != 24 or args.max_lead != 72:
         raise ValueError("This experiment is fixed to a 24-hour input and 72-hour recursion")
     dataset_path = args.dataset_path or (
@@ -518,7 +533,7 @@ def main() -> None:
     )
     output = args.output_dir or (
         MODULE_ROOT / "outputs" / "experiments" / args.station
-        / f"rolling_{args.validation_year}_seed42"
+        / f"rolling_{evaluation_year}_seed42"
     )
     output.mkdir(parents=True, exist_ok=True)
     device = torch.device(
@@ -529,19 +544,19 @@ def main() -> None:
     if device.type == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("CUDA was requested but is unavailable")
 
-    # Hard leakage boundary: load only through the selected validation year.
+    # Hard leakage boundary: load only through the selected evaluation year.
     atmosphere, surge, times = load_prepared(
-        dataset_path, args.train_start_year, args.validation_year
+        dataset_path, args.train_start_year, evaluation_year
     )
-    if times.max().year != args.validation_year or (times.year > args.validation_year).any():
-        raise AssertionError("Data later than the validation year entered the diagnostic")
+    if times.max().year != evaluation_year or (times.year > evaluation_year).any():
+        raise AssertionError("Data later than the evaluation year entered the diagnostic")
     print(f"loaded {times.min()} through {times.max()}; device={device}", flush=True)
     valid_atmosphere = atmospheric_validity(atmosphere)
     origins = find_common_origins(
-        times, valid_atmosphere, surge, args.validation_year, args.input_steps, args.max_lead
+        times, valid_atmosphere, surge, evaluation_year, args.input_steps, args.max_lead
     )
     if not len(origins):
-        raise ValueError("No common validation-year origins satisfy the experiment rules")
+        raise ValueError("No common evaluation-year origins satisfy the experiment rules")
     print(f"common forecast origins: {len(origins)}", flush=True)
 
     models, checkpoints, checkpoint_paths = load_models(
@@ -569,12 +584,14 @@ def main() -> None:
     rmse = rmse[["lead_hours", "valid_samples", *predictions]]
     rmse.to_csv(output / "rolling_rmse_table.csv", index=False)
     save_prediction_table(output, times, surge, origins, predictions)
-    plot_rmse(metrics, output / "rmse_vs_lead.png", args.validation_year)
+    plot_rmse(metrics, output / "rmse_vs_lead.png", evaluation_year)
     events = plot_strong_events(output, times, surge, origins, predictions, args.max_lead)
     metadata = {
         "experiment_name_zh": "已知未来大气强迫条件下的历史滚动回算",
         "operational_forecast": False,
-        "validation_year": args.validation_year,
+        "evaluation_year": evaluation_year,
+        "validation_year": evaluation_year,
+        "split": split,
         "loaded_time_min": times.min().isoformat(),
         "loaded_time_max": times.max().isoformat(),
         "latest_verification_time": times[
