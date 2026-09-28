@@ -198,6 +198,15 @@ Ridge/XGBoost既有模型，只在2018完整样本上评价。直接24小时结�
 滚动实验继续使用未来ERA5再分析真值，因此应称为“已知未来大气强迫历史回算”，
 不能表述为业务预报。
 
+最终评价完成后，使用已有CSV和PNG生成统一期刊图，不会重新训练模型：
+
+```powershell
+python caribbean_short_term_forecast\src\make_final_figures_2018.py
+```
+
+图件默认写入`outputs/experiments/prickly_bay/journal_figures_2018_seed42/`，
+并同步复制到Git-safe结果包的`journal_figures/`子目录。
+
 ## 测试
 
 ```powershell
