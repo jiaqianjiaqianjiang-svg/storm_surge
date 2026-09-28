@@ -104,7 +104,7 @@ def recursive_tabular_predictions(
     return predictions
 
 
-def recursive_dual_predictions(
+def recursive_neural_predictions(
     atmosphere: np.ndarray,
     origins: np.ndarray,
     initial_histories: np.ndarray,
@@ -113,7 +113,7 @@ def recursive_dual_predictions(
     batch_size: int,
     output_steps: int = 24,
 ) -> np.ndarray:
-    """Roll the seed-42 one-step Dual-CNN on the same direct origins."""
+    """Roll a one-step neural checkpoint without future observed surge."""
     model = model_from_checkpoint(checkpoint).to(device).eval()
     histories = np.asarray(initial_histories, dtype=np.float32).copy()
     predictions = np.empty((len(origins), output_steps), dtype=np.float32)
@@ -154,8 +154,12 @@ def recursive_dual_predictions(
                 )
             histories[:, :-1] = histories[:, 1:]
             histories[:, -1] = predictions[:, lead - 1]
-            print(f"dual rolling lead={lead}/{output_steps} complete", flush=True)
+            print(f"neural rolling lead={lead}/{output_steps} complete", flush=True)
     return predictions
+
+
+# Backwards-compatible name used by the established Dual-CNN experiments.
+recursive_dual_predictions = recursive_neural_predictions
 
 
 def load_direct_predictions(

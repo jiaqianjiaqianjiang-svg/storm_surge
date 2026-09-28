@@ -13,3 +13,4 @@ def test_unified_metrics_use_identical_origins_and_same_lead_targets():
     frame = build_metrics(surge, origins, predictions)
     assert len(frame) == 7 * 4
     assert np.allclose(frame.rmse_cm, 0.0)
+    assert "skill_vs_same_lead_persistence" in frame

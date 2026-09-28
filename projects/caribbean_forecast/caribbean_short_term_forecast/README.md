@@ -198,6 +198,38 @@ Ridge/XGBoost既有模型，只在2018完整样本上评价。直接24小时结�
 滚动实验继续使用未来ERA5再分析真值，因此应称为“已知未来大气强迫历史回算”，
 不能表述为业务预报。
 
+## 与厦门核心模型对齐
+
+在不改变Prickly Bay数据预处理和年份划分的前提下，新增与厦门一致的
+`CNN-GRU`：逐小时CNN提取ERA5空间特征，GRU联合过去24小时天气特征和
+增水历史完成一步预测；随后以6步递归损失进行rollout微调。训练仍使用
+2011—2016，2017用于checkpoint选择，2018只用于最终独立评价。
+
+在仓库根目录运行一条命令即可依次训练CNN-GRU、训练rollout-6、执行
+1/3/6/12/24/48/72小时统一评价并导出精简结果：
+
+```powershell
+cd /d "E:\AAAqian\code\storm_surge_clean\projects\caribbean_forecast\caribbean_short_term_forecast"
+python -m src.run_cnn_gru_alignment --device cuda --num-workers 0
+```
+
+输出模型位于`models/prickly_bay/formal_seed42/cnn_gru/`和
+`models/prickly_bay/formal_seed42/cnn_gru_rollout6/`；评价结果位于
+`outputs/experiments/prickly_bay/rolling_72_core_aligned_2018_seed42/`；
+Git-safe结果包单独写入
+`reports/experiment_results/prickly_bay_core_aligned_2018_seed42/`，不会覆盖
+已有Prickly Bay最终结果包和特色实验。
+
+两个站的对齐结果都导出后，在仓库根目录生成统一表：
+
+```powershell
+python tools\compare_station_core_models.py
+```
+
+该表只比较Persistence、Ridge、Fusion CNN、CNN-GRU和CNN-GRU rollout-6，
+并报告1、24、72小时RMSE、RRMSE、Pearson r和相对Persistence的MSE skill。
+站点已有的XGBoost、直接多步、物理特征等实验仍保留，但不混入这张核心对齐表。
+
 最终评价完成后，使用已有CSV和PNG生成统一期刊图，不会重新训练模型：
 
 ```powershell

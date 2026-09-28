@@ -19,26 +19,31 @@ import matplotlib.pyplot as plt
 try:
     from .evaluate import calculate_metrics
     from .evaluate_baselines import summarise_atmosphere
-    from .rolling_24_comparison import recursive_dual_predictions, recursive_tabular_predictions
+    from .rolling_24_comparison import recursive_neural_predictions, recursive_tabular_predictions
     from .rolling_diagnostics import atmospheric_validity, find_common_origins
     from .train_station import load_prepared
 except ImportError:
     from evaluate import calculate_metrics
     from evaluate_baselines import summarise_atmosphere
-    from rolling_24_comparison import recursive_dual_predictions, recursive_tabular_predictions
+    from rolling_24_comparison import recursive_neural_predictions, recursive_tabular_predictions
     from rolling_diagnostics import atmospheric_validity, find_common_origins
     from train_station import load_prepared
 
 
 MODULE_ROOT = Path(__file__).resolve().parents[1]
 LEADS = (1, 3, 6, 12, 24, 48, 72)
-METHODS = ("persistence", "ridge", "xgboost", "dual_cnn")
+METHODS = (
+    "persistence", "ridge", "xgboost", "dual_cnn",
+    "dual_cnn_rollout_trained", "cnn_gru", "cnn_gru_rollout6",
+)
 DISPLAY = {
     "persistence": "Persistence",
     "ridge": "Ridge",
     "xgboost": "XGBoost",
     "dual_cnn": "Dual-CNN",
     "dual_cnn_rollout_trained": "Dual-CNN rollout-trained",
+    "cnn_gru": "CNN-GRU",
+    "cnn_gru_rollout6": "CNN-GRU rollout-6",
 }
 
 
@@ -55,6 +60,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--xgboost-model", type=Path)
     parser.add_argument("--dual-checkpoint", type=Path)
     parser.add_argument("--rollout-checkpoint", type=Path)
+    parser.add_argument("--cnn-gru-checkpoint", type=Path)
+    parser.add_argument("--cnn-gru-rollout-checkpoint", type=Path)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
@@ -78,6 +85,9 @@ def build_metrics(
         rise_threshold = float(np.quantile(positive, 0.90)) if len(positive) else np.nan
         rapid_mask = rises >= rise_threshold if np.isfinite(rise_threshold) else np.zeros(len(observed), bool)
         ridge_mse = float(np.mean((predictions["ridge"][:, lead - 1] - observed) ** 2))
+        persistence_mse = float(
+            np.mean((predictions["persistence"][:, lead - 1] - observed) ** 2)
+        )
         for method in predictions:
             predicted = predictions[method][:, lead - 1]
             overall = calculate_metrics(observed, predicted)
@@ -89,6 +99,9 @@ def build_metrics(
                 "method": method,
                 **overall,
                 "skill_vs_same_lead_ridge": 1 - mse / ridge_mse if ridge_mse > 0 else np.nan,
+                "skill_vs_same_lead_persistence": (
+                    1 - mse / persistence_mse if persistence_mse > 0 else np.nan
+                ),
                 "top5_n": int(top["n"]),
                 "top5_threshold_cm": threshold * 100,
                 "top5_rmse_cm": top["rmse_cm"],
@@ -104,7 +117,7 @@ def plot_metric(
     evaluation_year: int,
 ) -> None:
     fig, ax = plt.subplots(figsize=(9.5, 5.8))
-    ordered = [method for method in (*METHODS, "dual_cnn_rollout_trained") if method in set(metrics.method)]
+    ordered = [method for method in METHODS if method in set(metrics.method)]
     for method in ordered:
         subset = metrics[metrics.method == method]
         ax.plot(subset.lead_hours, subset[column], marker="o", linewidth=2, label=DISPLAY[method])
@@ -176,14 +189,26 @@ def main() -> None:
         "persistence": np.repeat(np.asarray(surge[origins - 1], dtype=np.float32)[:, None], 72, axis=1),
         "ridge": recursive_tabular_predictions(ridge, summaries, histories, origins - 1, output_steps=72),
         "xgboost": recursive_tabular_predictions(xgboost, summaries, histories, origins - 1, output_steps=72),
-        "dual_cnn": recursive_dual_predictions(atmosphere, origins - 1, histories, checkpoint, device, args.batch_size, output_steps=72),
+        "dual_cnn": recursive_neural_predictions(atmosphere, origins - 1, histories, checkpoint, device, args.batch_size, output_steps=72),
     }
     if args.rollout_checkpoint:
         rollout_checkpoint = torch.load(
             args.rollout_checkpoint, map_location=device, weights_only=False
         )
-        predictions["dual_cnn_rollout_trained"] = recursive_dual_predictions(
+        predictions["dual_cnn_rollout_trained"] = recursive_neural_predictions(
             atmosphere, origins - 1, histories, rollout_checkpoint,
+            device, args.batch_size, output_steps=72,
+        )
+    optional_neural = {
+        "cnn_gru": args.cnn_gru_checkpoint,
+        "cnn_gru_rollout6": args.cnn_gru_rollout_checkpoint,
+    }
+    for name, path in optional_neural.items():
+        if path is None:
+            continue
+        neural_checkpoint = torch.load(path, map_location=device, weights_only=False)
+        predictions[name] = recursive_neural_predictions(
+            atmosphere, origins - 1, histories, neural_checkpoint,
             device, args.batch_size, output_steps=72,
         )
     metrics = build_metrics(surge, origins, predictions)

@@ -7,6 +7,11 @@ from typing import Any, Sequence
 import torch
 from torch import nn
 
+try:
+    from .temporal_models import CNNGRUForecastModel
+except ImportError:
+    from temporal_models import CNNGRUForecastModel
+
 
 class CaribbeanSurgeCNN(nn.Module):
     def __init__(
@@ -147,6 +152,7 @@ MODEL_TYPES: dict[str, type[nn.Module]] = {
     "dual": CaribbeanSurgeCNN,
     "era5_cnn": ERA5OnlyCNN,
     "surge_mlp": SurgeHistoryMLP,
+    "cnn_gru": CNNGRUForecastModel,
 }
 
 

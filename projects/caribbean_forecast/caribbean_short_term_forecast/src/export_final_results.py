@@ -17,6 +17,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--station", default="prickly_bay")
     parser.add_argument("--evaluation-year", type=int, default=2018)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--rolling-dir", type=Path)
     parser.add_argument("--output-dir", type=Path)
     return parser.parse_args()
 
@@ -40,7 +41,9 @@ def main() -> None:
     args = parse_args()
     experiments = MODULE_ROOT / "outputs" / "experiments" / args.station
     direct = experiments / f"direct_multimodel_{args.evaluation_year}_final_seed{args.seed}"
-    rolling = experiments / f"rolling_72_with_rollout6_{args.evaluation_year}_seed{args.seed}"
+    rolling = args.rolling_dir or (
+        experiments / f"rolling_72_with_rollout6_{args.evaluation_year}_seed{args.seed}"
+    )
     output = args.output_dir or (
         REPOSITORY_ROOT / "reports" / "experiment_results" /
         f"{args.station}_short_term_{args.evaluation_year}_seed{args.seed}"
@@ -63,6 +66,7 @@ def main() -> None:
         "development_year": 2017,
         "independent_test_year": args.evaluation_year,
         "known_future_era5": True,
+        "rolling_result_source": str(rolling),
         "contains_model_weights": False,
         "contains_raw_or_processed_data": False,
         "files": copied,

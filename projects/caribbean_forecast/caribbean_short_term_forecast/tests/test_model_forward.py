@@ -2,6 +2,7 @@ import torch
 
 from caribbean_short_term_forecast.src.forecast_model import (
     CaribbeanSurgeCNN,
+    CNNGRUForecastModel,
     ERA5OnlyCNN,
     SurgeHistoryMLP,
 )
@@ -25,3 +26,13 @@ def test_ablation_models_follow_common_forward_interface() -> None:
     history_only = SurgeHistoryMLP(6, ("U10", "V10", "MSL"), 40)
     assert tuple(weather_only(atmosphere, history).shape) == (2,)
     assert tuple(history_only(atmosphere, history).shape) == (2,)
+
+
+def test_cnn_gru_uses_the_common_forward_and_encoded_interfaces() -> None:
+    model = CNNGRUForecastModel(6, ("U10", "V10", "MSL"), 40)
+    atmosphere = torch.randn(2, 18, 40, 40)
+    history = torch.randn(2, 6)
+    encoded = model.weather_features(atmosphere)
+    assert tuple(encoded.shape) == (2, 6, 64)
+    assert tuple(model(atmosphere, history).shape) == (2,)
+    assert tuple(model.forward_encoded(encoded, history).shape) == (2,)
