@@ -179,6 +179,25 @@ python caribbean_short_term_forecast\src\evaluate_physics_fusion.py --station pr
 
 `physics.onshore_bearing_deg_clockwise_from_north`定义为从外海指向海湾内部的方向。未人工核实时必须保持`null`；程序仍会生成非方向性风压特征，但不会静默假定岸向方向。
 
+## 2018最终独立测试
+
+完成2017模型开发并锁定checkpoint后，可用一个入口执行2018直接24小时与
+1—72小时递归评价，并导出不含权重和大数组的Git-safe结果包：
+
+```powershell
+python caribbean_short_term_forecast\src\run_final_2018.py --device cuda
+```
+
+该入口不会重新训练模型，也不会覆盖2017开发结果。它读取
+`direct_multimodel_2017_seed42/`、`formal_seed42/`、`rollout6_seed42/`及
+Ridge/XGBoost既有模型，只在2018完整样本上评价。直接24小时结果写入
+`direct_multimodel_2018_final_seed42/`，滚动结果写入
+`rolling_72_with_rollout6_2018_seed42/`，精简结果包写入仓库
+`reports/experiment_results/prickly_bay_short_term_2018_seed42/`。
+
+滚动实验继续使用未来ERA5再分析真值，因此应称为“已知未来大气强迫历史回算”，
+不能表述为业务预报。
+
 ## 测试
 
 ```powershell

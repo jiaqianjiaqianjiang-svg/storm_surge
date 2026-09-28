@@ -1,4 +1,4 @@
-"""Unified 2017 72-hour recursive comparison for four representative models."""
+"""Unified 72-hour recursive comparison for a locked evaluation year."""
 
 from __future__ import annotations
 
@@ -45,7 +45,11 @@ DISPLAY = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--station", default="prickly_bay")
-    parser.add_argument("--validation-year", type=int, default=2017)
+    parser.add_argument("--evaluation-year", type=int, default=2017)
+    parser.add_argument(
+        "--validation-year", type=int, dest="evaluation_year",
+        default=argparse.SUPPRESS, help=argparse.SUPPRESS,
+    )
     parser.add_argument("--dataset-path", type=Path)
     parser.add_argument("--ridge-model", type=Path)
     parser.add_argument("--xgboost-model", type=Path)
@@ -95,7 +99,10 @@ def build_metrics(
     return pd.DataFrame(rows)
 
 
-def plot_metric(metrics: pd.DataFrame, column: str, ylabel: str, destination: Path) -> None:
+def plot_metric(
+    metrics: pd.DataFrame, column: str, ylabel: str, destination: Path,
+    evaluation_year: int,
+) -> None:
     fig, ax = plt.subplots(figsize=(9.5, 5.8))
     ordered = [method for method in (*METHODS, "dual_cnn_rollout_trained") if method in set(metrics.method)]
     for method in ordered:
@@ -105,7 +112,7 @@ def plot_metric(metrics: pd.DataFrame, column: str, ylabel: str, destination: Pa
     ax.set(xlabel="Lead time (hours)", ylabel=ylabel, xticks=LEADS)
     ax.grid(alpha=0.25)
     ax.legend()
-    ax.set_title("Prickly Bay 2017 unified 72-hour recursive hindcast")
+    ax.set_title(f"Prickly Bay {evaluation_year} unified 72-hour recursive hindcast")
     fig.tight_layout()
     fig.savefig(destination, dpi=400)
     plt.close(fig)
@@ -152,13 +159,14 @@ def main() -> None:
     ridge_path = args.ridge_model or MODULE_ROOT / "models" / args.station / "baselines" / "ridge_pipeline.joblib"
     xgb_path = args.xgboost_model or MODULE_ROOT / "outputs" / "experiments" / args.station / "rolling_24_comparison_2017_seed42" / "xgboost_one_step.joblib"
     dual_path = args.dual_checkpoint or MODULE_ROOT / "models" / args.station / "formal_seed42" / "dual" / "best_model.pth"
-    output = args.output_dir or MODULE_ROOT / "outputs" / "experiments" / args.station / "rolling_72_comparison_2017_seed42"
+    year = args.evaluation_year
+    output = args.output_dir or MODULE_ROOT / "outputs" / "experiments" / args.station / f"rolling_72_comparison_{year}_seed42"
     output.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if args.device == "auto" and torch.cuda.is_available() else ("cpu" if args.device == "auto" else args.device))
-    atmosphere, surge, times = load_prepared(dataset, 2011, args.validation_year)
-    if times.max().year != args.validation_year:
-        raise AssertionError("Data beyond validation year entered the 72-hour experiment")
-    origins = find_common_origins(times, atmospheric_validity(atmosphere), surge, args.validation_year, 24, 72, LEADS)
+    atmosphere, surge, times = load_prepared(dataset, 2011, year)
+    if times.max().year != year:
+        raise AssertionError("Data beyond the evaluation year entered the 72-hour experiment")
+    origins = find_common_origins(times, atmospheric_validity(atmosphere), surge, year, 24, 72, LEADS)
     histories = np.stack([np.asarray(surge[o - 24:o], dtype=np.float32) for o in origins])
     summaries = summarise_atmosphere(atmosphere)
     ridge = joblib.load(ridge_path)
@@ -190,14 +198,15 @@ def main() -> None:
         data.update({f"{name}_m": values[:, lead - 1] for name, values in predictions.items()})
         rows.append(pd.DataFrame(data))
     pd.concat(rows, ignore_index=True).to_csv(output / "predictions_selected_leads.csv", index=False)
-    plot_metric(metrics, "rmse_cm", "RMSE (cm)", output / "rmse_vs_lead.png")
-    plot_metric(metrics, "bias_cm", "Bias (cm)", output / "bias_vs_lead.png")
-    plot_metric(metrics, "top5_rmse_cm", "Top 5% RMSE (cm)", output / "top5_rmse_vs_lead.png")
+    plot_metric(metrics, "rmse_cm", "RMSE (cm)", output / "rmse_vs_lead.png", year)
+    plot_metric(metrics, "bias_cm", "Bias (cm)", output / "bias_vs_lead.png", year)
+    plot_metric(metrics, "top5_rmse_cm", "Top 5% RMSE (cm)", output / "top5_rmse_vs_lead.png", year)
     events = plot_events(output, times, surge, origins, predictions)
     metadata = {
         "experiment": "known-future-ERA5 72-hour recursive hindcast",
-        "validation_year": args.validation_year,
-        "2018_loaded": False,
+        "evaluation_year": year,
+        "split": "validation" if year == 2017 else "independent_test",
+        "2018_loaded": bool(year >= 2018),
         "common_origins": int(len(origins)),
         "leads": list(LEADS),
         "models": list(predictions),
