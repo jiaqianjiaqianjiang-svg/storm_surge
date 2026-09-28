@@ -1,0 +1,11 @@
+figure_name,status
+fig01_direct_selected_leads.png,created
+fig02_direct_rmse_by_lead.png,created
+fig03_rolling_rmse_by_lead.png,created
+fig04_rollout_improvement.png,created
+fig05_extreme_metrics.png,created
+fig06_direct_scatter.png,created
+fig07_residual_diagnostics.png,created
+fig08_strong_event_1.png,created
+fig08_strong_event_2.png,created
+fig08_strong_event_3.png,created
