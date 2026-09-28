@@ -1,0 +1,23 @@
+{
+  "experiment": "locked direct 24-hour independent test",
+  "evaluation_year": 2018,
+  "development_year": 2017,
+  "training_years": [
+    2011,
+    2016
+  ],
+  "samples": 3848,
+  "models": [
+    "persistence",
+    "combined_ridge",
+    "xgboost",
+    "mlp",
+    "gru",
+    "dual_cnn_past",
+    "dual_cnn_future"
+  ],
+  "device": "cuda",
+  "retrained": false,
+  "checkpoint_selection_used_test_data": false,
+  "future_era5_definition": "known future ERA5 reanalysis; historical hindcast only"
+}

@@ -1,0 +1,33 @@
+{
+  "station": "prickly_bay",
+  "evaluation_year": 2018,
+  "seed": 42,
+  "training_years": [
+    2011,
+    2016
+  ],
+  "development_year": 2017,
+  "independent_test_year": 2018,
+  "known_future_era5": true,
+  "contains_model_weights": false,
+  "contains_raw_or_processed_data": false,
+  "files": {
+    "direct_24h": [
+      "metadata.json",
+      "metrics_all_leads.csv",
+      "rmse_primary_leads.csv",
+      "rmse_vs_lead.png"
+    ],
+    "rolling_72h": [
+      "bias_vs_lead.png",
+      "metadata.json",
+      "metrics_selected_leads.csv",
+      "rmse_table.csv",
+      "rmse_vs_lead.png",
+      "strong_event_1_20180910_0800.png",
+      "strong_event_2_20180916_1400.png",
+      "strong_event_3_20180919_1500.png",
+      "top5_rmse_vs_lead.png"
+    ]
+  }
+}
