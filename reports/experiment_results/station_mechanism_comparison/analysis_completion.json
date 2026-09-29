@@ -1,0 +1,9 @@
+{
+  "xiamen_results": "/Users/jjq/Documents/storm_surge/storm_surge_clean/reports/experiment_results/xiamen_short_term_1997_seed42",
+  "prickly_results": "/Users/jjq/Documents/storm_surge/storm_surge_clean/reports/experiment_results/prickly_bay_core_aligned_2018_seed42",
+  "acf_complete": false,
+  "persistence_skill_complete": true,
+  "era5_increment_complete": false,
+  "extreme_comparison_complete": true,
+  "bootstrap_possible": false
+}
