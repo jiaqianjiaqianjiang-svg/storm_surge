@@ -1,0 +1,9 @@
+{
+  "xiamen_results": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\reports\\experiment_results\\xiamen_short_term_1997_seed42",
+  "prickly_results": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\reports\\experiment_results\\prickly_bay_core_aligned_2018_seed42",
+  "acf_complete": false,
+  "persistence_skill_complete": true,
+  "era5_increment_complete": false,
+  "extreme_comparison_complete": true,
+  "bootstrap_possible": false
+}
