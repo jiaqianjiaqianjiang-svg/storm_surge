@@ -20,3 +20,13 @@ python -m analysis.station_mechanism_comparison.run_analysis `
 Each dataset directory must contain `time.npy` and `surge.npy`. Missing raw
 series or prediction-level files are reported and skipped rather than inferred
 from aggregate metrics.
+
+Raw station data do not need to be copied between computers. A Git-safe result
+directory containing `station_acf_full.csv`, `station_surge_scale.csv`, and
+`station_analysis_audit.json` can be merged on another computer:
+
+```bash
+python -m analysis.station_mechanism_comparison.run_analysis \
+  --xiamen-derived-dir reports/experiment_results/station_mechanism_xiamen_1997 \
+  --output-dir reports/experiment_results/station_mechanism_comparison_complete
+```

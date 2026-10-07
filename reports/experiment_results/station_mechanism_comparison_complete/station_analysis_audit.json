@@ -1,0 +1,74 @@
+{
+  "status": "complete",
+  "metric_definitions_aligned": true,
+  "comparison_basis": "common-origin recursive hindcast metrics at identical lead times within each station",
+  "definitions": {
+    "rmse_cm": "sqrt(mean((predicted-observed)^2)) after conversion from m to cm",
+    "rrmse_percent": "RMSE_cm / mean(abs(observed_cm)) * 100",
+    "pearson_r": "Pearson product-moment correlation over finite observed/predicted pairs",
+    "top5": "abs(observed) >= within-lead 95th percentile on common origins",
+    "rapid_rise": "observed one-hour rise >= within-lead 90th percentile of positive rises",
+    "skill_rmse_vs_persistence": "1 - RMSE_model / RMSE_persistence"
+  },
+  "warnings": [
+    "Raw independent-test observations are required for ACF and surge-scale analysis.",
+    "No paired bootstrap is performed without exported per-origin predictions.",
+    "Known future ERA5 reanalysis is used in rolling experiments; results are hindcasts, not operational forecasts."
+  ],
+  "stations": {
+    "Xiamen": {
+      "result_directory": "/Users/jjq/Documents/storm_surge/storm_surge_clean/reports/experiment_results/xiamen_short_term_1997_seed42",
+      "evaluation_year": 1997,
+      "training_years": [
+        1970,
+        1995
+      ],
+      "validation_year": 1996,
+      "input_window_hours": 24,
+      "lead_hours": [
+        1,
+        3,
+        6,
+        12,
+        24,
+        48,
+        72
+      ],
+      "common_origin_samples": 8681,
+      "metric_unit": "cm",
+      "observed_dataset": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\outputs\\processed\\xiamen\\aligned_dataset",
+      "observed_series_available": true,
+      "observed_evidence": "git_safe_derived_statistics",
+      "observed_time_start": "1997-01-01T00:00:00",
+      "observed_time_end": "1997-12-31T15:00:00",
+      "finite_observed_samples": 8752
+    },
+    "Prickly Bay": {
+      "result_directory": "/Users/jjq/Documents/storm_surge/storm_surge_clean/reports/experiment_results/prickly_bay_core_aligned_2018_seed42",
+      "evaluation_year": 2018,
+      "training_years": [
+        2011,
+        2016
+      ],
+      "validation_year": 2017,
+      "input_window_hours": 24,
+      "lead_hours": [
+        1,
+        3,
+        6,
+        12,
+        24,
+        48,
+        72
+      ],
+      "common_origin_samples": 4059,
+      "metric_unit": "cm",
+      "observed_dataset": "/Users/jjq/Documents/storm_surge/storm_surge_clean/projects/caribbean_forecast/caribbean_short_term_forecast/outputs/processed/prickly_bay/aligned_dataset",
+      "observed_series_available": true,
+      "observed_evidence": "raw_series",
+      "observed_time_start": "2018-01-01T00:00:00",
+      "observed_time_end": "2018-10-04T23:00:00",
+      "finite_observed_samples": 6432
+    }
+  }
+}

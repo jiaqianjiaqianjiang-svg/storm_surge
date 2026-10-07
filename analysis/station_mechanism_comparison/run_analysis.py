@@ -48,6 +48,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--prickly-results", type=Path)
     parser.add_argument("--xiamen-dataset", type=Path)
     parser.add_argument("--prickly-dataset", type=Path)
+    parser.add_argument("--xiamen-derived-dir", type=Path)
+    parser.add_argument("--prickly-derived-dir", type=Path)
     parser.add_argument(
         "--output-dir", type=Path,
         default=reports / "station_mechanism_comparison",
@@ -190,6 +192,47 @@ def surge_scale(series: dict[str, pd.DataFrame]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def load_derived_observed(
+    directory: Path | None, station: str,
+) -> tuple[pd.DataFrame | None, pd.DataFrame | None, dict[str, Any] | None]:
+    """Load Git-safe ACF/scale summaries exported beside a raw dataset."""
+    if directory is None or not directory.is_dir():
+        return None, None, None
+    acf_path = directory / "station_acf_full.csv"
+    scale_path = directory / "station_surge_scale.csv"
+    audit_path = directory / "station_analysis_audit.json"
+    acf = pd.read_csv(acf_path) if acf_path.is_file() else None
+    scale = pd.read_csv(scale_path) if scale_path.is_file() else None
+    if acf is not None and "station" in acf:
+        acf = acf[acf.station.eq(station)].drop(columns="station").reset_index(drop=True)
+        if acf.empty:
+            acf = None
+    if scale is not None and "station" in scale:
+        scale = scale[scale.station.eq(station)].reset_index(drop=True)
+        if scale.empty:
+            scale = None
+    audit = json.loads(audit_path.read_text(encoding="utf-8")) if audit_path.is_file() else None
+    return acf, scale, audit
+
+
+def merge_observed_evidence(
+    series: dict[str, pd.DataFrame],
+    derived_dirs: dict[str, Path | None],
+) -> tuple[dict[str, pd.DataFrame], pd.DataFrame, dict[str, dict[str, Any]]]:
+    acfs = {station: acf_for_series(frame) for station, frame in series.items()}
+    scales = surge_scale(series)
+    metadata: dict[str, dict[str, Any]] = {}
+    for station, directory in derived_dirs.items():
+        derived_acf, derived_scale, derived_audit = load_derived_observed(directory, station)
+        if station not in acfs and derived_acf is not None:
+            acfs[station] = derived_acf
+        if station not in set(scales.get("station", pd.Series(dtype=str))) and derived_scale is not None:
+            scales = pd.concat([scales, derived_scale], ignore_index=True)
+        if derived_audit:
+            metadata[station] = derived_audit.get("stations", {}).get(station, {})
+    return acfs, scales, metadata
+
+
 def persistence_decay(metrics: pd.DataFrame) -> pd.DataFrame:
     columns = ["station", "lead_hours", "n", "rmse_cm", "rrmse_percent", "pearson_r", "r2"]
     return metrics[metrics.model.eq("Persistence")][columns].sort_values(["station", "lead_hours"])
@@ -309,11 +352,9 @@ def plot_acf(acfs: dict[str, pd.DataFrame], path: Path) -> None:
     save_figure(fig, path)
 
 
-def plot_distribution(series: dict[str, pd.DataFrame], path: Path) -> None:
+def plot_distribution(series: dict[str, pd.DataFrame], scale: pd.DataFrame, path: Path) -> None:
     fig, axes = plt.subplots(1, 2, figsize=(10, 4.5))
-    if not series:
-        for ax in axes: unavailable(ax, "Independent-test observed series unavailable")
-    else:
+    if len(series) == 2:
         arrays = []
         labels = []
         for station, frame in series.items():
@@ -326,10 +367,26 @@ def plot_distribution(series: dict[str, pd.DataFrame], path: Path) -> None:
         axes[0].grid(True); axes[0].legend()
         axes[1].boxplot(arrays, tick_labels=labels, showfliers=False)
         axes[1].set(ylabel="Storm surge (cm)"); axes[1].grid(True, axis="y")
-        missing = [s for s in ("Xiamen", "Prickly Bay") if s not in series]
-        if missing:
-            axes[1].text(0.98, 0.03, f"Unavailable: {', '.join(missing)}", ha="right", transform=axes[1].transAxes)
-    axes[0].set_title("(a) Distribution"); axes[1].set_title("(b) Robust range")
+        axes[0].set_title("(a) Distribution"); axes[1].set_title("(b) Robust range")
+    elif not scale.empty:
+        ordered = scale.set_index("station").reindex(["Xiamen", "Prickly Bay"]).dropna(how="all")
+        x = np.arange(len(ordered))
+        axes[0].bar(x - 0.18, ordered.std_cm, 0.36, label="Standard deviation", color="#0072B2")
+        axes[0].bar(x + 0.18, ordered.mean_absolute_cm, 0.36, label="Mean absolute", color="#E69F00")
+        axes[0].set_xticks(x, ordered.index); axes[0].set_ylabel("Storm surge scale (cm)")
+        axes[0].legend(); axes[0].grid(True, axis="y")
+        width = 0.24
+        for offset, column, label, color in (
+            (-width, "p90_absolute_cm", "P90", "#56B4E9"),
+            (0, "p95_absolute_cm", "P95", "#009E73"),
+            (width, "p99_absolute_cm", "P99", "#D55E00"),
+        ):
+            axes[1].bar(x + offset, ordered[column], width, label=label, color=color)
+        axes[1].set_xticks(x, ordered.index); axes[1].set_ylabel("Absolute storm surge (cm)")
+        axes[1].legend(); axes[1].grid(True, axis="y")
+        axes[0].set_title("(a) Typical scale"); axes[1].set_title("(b) Upper quantiles")
+    else:
+        for ax in axes: unavailable(ax, "Independent-test scale summaries unavailable")
     save_figure(fig, path)
 
 
@@ -419,12 +476,14 @@ def plot_extremes(frame: pd.DataFrame, path: Path) -> None:
 def build_audit(
     results: dict[str, Path], metrics: dict[str, pd.DataFrame],
     series: dict[str, pd.DataFrame], datasets: dict[str, Path | None],
+    observed_metadata: dict[str, dict[str, Any]], observed_stations: set[str],
 ) -> dict[str, Any]:
     station_details = {}
     for station in ("Xiamen", "Prickly Bay"):
         frame = metrics[station]
         year = 1997 if station == "Xiamen" else 2018
         observed = series.get(station)
+        prior = observed_metadata.get(station, {})
         station_details[station] = {
             "result_directory": str(results[station]),
             "evaluation_year": year,
@@ -434,14 +493,15 @@ def build_audit(
             "lead_hours": sorted(frame.lead_hours.astype(int).unique().tolist()),
             "common_origin_samples": int(frame.n.min()),
             "metric_unit": "cm",
-            "observed_dataset": str(datasets[station]) if datasets[station] else None,
-            "observed_series_available": station in series,
-            "observed_time_start": observed.datetime.min().isoformat() if observed is not None else None,
-            "observed_time_end": observed.datetime.max().isoformat() if observed is not None else None,
-            "finite_observed_samples": int(observed.surge_m.notna().sum()) if observed is not None else None,
+            "observed_dataset": str(datasets[station]) if datasets[station] else prior.get("observed_dataset"),
+            "observed_series_available": station in observed_stations,
+            "observed_evidence": "raw_series" if station in series else "git_safe_derived_statistics",
+            "observed_time_start": observed.datetime.min().isoformat() if observed is not None else prior.get("observed_time_start"),
+            "observed_time_end": observed.datetime.max().isoformat() if observed is not None else prior.get("observed_time_end"),
+            "finite_observed_samples": int(observed.surge_m.notna().sum()) if observed is not None else prior.get("finite_observed_samples"),
         }
     return {
-        "status": "partial" if len(series) < 2 else "complete",
+        "status": "complete" if observed_stations == {"Xiamen", "Prickly Bay"} else "partial",
         "metric_definitions_aligned": True,
         "comparison_basis": "common-origin recursive hindcast metrics at identical lead times within each station",
         "definitions": {
@@ -482,6 +542,22 @@ def report_text(
     p_top72 = extreme[(extreme.station.eq("Prickly Bay")) & (extreme.lead_hours.eq(72)) & (extreme.condition.eq("top5_absolute_surge"))]
     x_rapid72 = extreme[(extreme.station.eq("Xiamen")) & (extreme.lead_hours.eq(72)) & (extreme.condition.eq("rapid_rise"))]
     p_rapid72 = extreme[(extreme.station.eq("Prickly Bay")) & (extreme.lead_hours.eq(72)) & (extreme.condition.eq("rapid_rise"))]
+    acf_complete = audit["status"] == "complete"
+    mechanism_limit = (
+        "两站ACF已经验证时间记忆差异，但由于缺少Prickly Bay 2018同口径滚动消融，"
+        "仍不能把差异完全归因于ERA5增量。"
+        if acf_complete else
+        "当前尚未取得两个站完整的独立测试期ACF，因此时间记忆差异仍需补齐观测证据；"
+        "同时缺少Prickly Bay 2018同口径滚动消融，不能把差异完全归因于ERA5增量。"
+    )
+    mechanism_conclusion = (
+        "因此，提出的‘厦门记忆较短、Prickly Bay记忆较长’假设已经获得观测序列ACF、"
+        "Persistence相关和模型skill三方面支持；ERA5增量机制仍需补齐Prickly Bay同口径消融后"
+        "才能写成确定结论。"
+        if acf_complete else
+        "因此，提出的‘厦门记忆较短、Prickly Bay记忆较长’假设目前只获得Persistence相关和"
+        "模型skill的部分支持，仍需补齐观测序列ACF与Prickly Bay同口径消融。"
+    )
 
     def winner(frame: pd.DataFrame) -> str:
         if frame.empty: return "不可用"
@@ -533,9 +609,9 @@ def report_text(
         "",
         "**有数据直接支持：** Prickly Bay在72 h仍保持很高的Persistence相关；Ridge仍是其核心模型中总体最优方案；rollout-6在两个站都降低了CNN-GRU递归误差；复杂时序模型在厦门的长提前量和强过程中价值更明显。",
         "",
-        "**目前只能作为合理推测：** 两站差异可能来自不同动力响应时间、气象强迫类型、观测噪声或站点代表性。由于本机缺少厦门1997真实序列，尚不能直接完成两站0–168 h ACF验证；由于缺少Prickly Bay 2018同口径滚动消融，也不能把差异完全归因于ERA5增量。",
+        f"**目前只能作为合理推测：** 两站差异可能来自不同动力响应时间、气象强迫类型、观测噪声或站点代表性。{mechanism_limit}",
         "",
-        "因此，提出的‘厦门记忆较短、Prickly Bay记忆较长’假设获得了Persistence相关和模型skill结果的**部分支持**，但关于确切记忆时间与ERA5增量机制的表述，仍需补齐两块缺失证据后才能写成确定结论。",
+        mechanism_conclusion,
         "",
         "## 8. 统计稳定性",
         "",
@@ -549,8 +625,8 @@ def report_text(
         "",
         "## 10. 后续最值得做的实验",
         "",
-        "1. 在实验室电脑传入厦门aligned_dataset运行本模块，补齐两站真实序列尺度与0–168 h ACF；不需要重新训练。",
-        "2. 在已锁定的Prickly Bay 2018共同起报样本上只做推理，导出Surge-MLP、ERA5-only及逐起报预测，以完成ERA5增量与配对bootstrap；不修改模型。",
+        "1. 在已锁定的Prickly Bay 2018共同起报样本上只做推理，导出Surge-MLP与ERA5-only滚动指标，以完成ERA5增量对比；不修改模型。",
+        "2. 后续导出两个站逐起报预测，完成配对moving-block bootstrap及置信区间；不需要重新训练。",
     ])
     return "\n".join(lines)
 
@@ -570,19 +646,26 @@ def main() -> None:
         "Xiamen": args.xiamen_dataset or auto_dataset(repository_root, "Xiamen"),
         "Prickly Bay": args.prickly_dataset or auto_dataset(repository_root, "Prickly Bay"),
     }
+    derived_dirs = {
+        "Xiamen": args.xiamen_derived_dir,
+        "Prickly Bay": args.prickly_derived_dir,
+    }
     years = {"Xiamen": 1997, "Prickly Bay": 2018}
     series = {
         station: loaded for station in years
         if (loaded := load_observed_series(datasets[station], years[station])) is not None
     }
-    acfs = {station: acf_for_series(frame) for station, frame in series.items()}
+    acfs, scale_table, observed_metadata = merge_observed_evidence(series, derived_dirs)
     acf_table = acf_summary(acfs)
-    scale_table = surge_scale(series)
     persistence = persistence_decay(metrics)
     skill = skill_vs_persistence(metrics)
     era5 = era5_incremental_value(metrics)
     extreme = extreme_comparison(metrics)
-    audit = build_audit(results, metrics_by_station, series, datasets)
+    observed_stations = set(acfs) & set(scale_table.station) if not scale_table.empty else set()
+    audit = build_audit(
+        results, metrics_by_station, series, datasets,
+        observed_metadata, observed_stations,
+    )
     output = args.output_dir; output.mkdir(parents=True, exist_ok=True)
     (output / "station_analysis_audit.json").write_text(
         json.dumps(audit, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -598,7 +681,7 @@ def main() -> None:
     era5.to_csv(output / "era5_incremental_value.csv", index=False)
     extreme.to_csv(output / "extreme_process_comparison.csv", index=False)
     plot_acf(acfs, output / "fig01_station_acf.png")
-    plot_distribution(series, output / "fig02_station_surge_distribution.png")
+    plot_distribution(series, scale_table, output / "fig02_station_surge_distribution.png")
     plot_persistence(persistence, output / "fig03_persistence_decay.png")
     plot_skill(skill, output / "fig04_skill_vs_persistence.png")
     plot_era5(era5, output / "fig05_era5_incremental_gain.png")
