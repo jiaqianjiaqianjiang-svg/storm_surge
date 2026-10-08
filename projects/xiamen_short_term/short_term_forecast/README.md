@@ -98,7 +98,7 @@ python -m src.xiamen_forecast.rolling_diagnostics --device cuda
 python -m src.xiamen_forecast.rolling_diagnostics --device cuda --rollout-checkpoint "models\xiamen\formal_seed42\cnn_gru_rollout6\best_model.pth"
 ```
 
-滚动实验使用未来时次的 ERA5 再分析场，因此应称为“已知未来大气强迫条件下的历史回算”，不能表述为业务实时预报。1997 测试年在模型和方案确定前保持封存。
+滚动实验使用未来时次的 ERA5 再分析场，因此应称为“已知未来大气强迫条件下的历史回算”，不能表述为业务实时预报。模型和方案已在1996验证集上锁定，1997独立测试已经完成；后续不得再根据1997结果反复选择模型或调整超参数。
 
 模型方案固定后，运行一次1997独立测试总流程。该入口不会重新训练模型，会依次汇总已有一步测试指标、运行1至72小时滚动回算、生成1997测试图，并导出Git安全结果包：
 

@@ -1,6 +1,6 @@
 # Storm Surge 工作区索引
 
-本仓库按“研究项目、参考资料、工具、报告、归档”分类。厦门短时预报已经统一到正式 v2 入口，确认被替代的重复训练代码已清理。
+本仓库按“研究项目、参考资料、工具、报告、归档”分类。厦门短时预报已经统一到正式 v2 入口，Prickly Bay 已完成与厦门 CNN-GRU/rollout-6 核心模型的对齐评价，确认被替代的重复训练代码已清理。
 
 第一次接触本项目，请先阅读 [`PROJECT_GUIDE_CN.md`](PROJECT_GUIDE_CN.md)。其中集中说明了研究目标、数据年份、电脑与代码位置、模型结构、运行流程、厦门和加勒比实验结果，以及当前已完成和未完成的工作。
 
@@ -19,13 +19,13 @@
 
 位置：`projects/xiamen_short_term/short_term_forecast/`
 
-包含早期小时风暴增水 Ridge 结果，以及完整的 ERA5 多年 v2 流程。v2 支持 1970—1997 数据逐年预处理、训练期 UTide 标定、按年份训练/验证/测试、内存映射、Persistence/Ridge 基线、ERA5-only/Surge-only 消融、CNN/CNN-LSTM/CNN-GRU/TCN/Transformer 对比、CNN-GRU 六步递归微调、72 小时滚动诊断和期刊绘图。运行方式见项目 README。
+包含完整的 ERA5 多年 v2 流程。v2 支持 1970—1997 数据逐年预处理、训练期 UTide 标定、按年份训练/验证/测试、内存映射、Persistence/Ridge 基线、ERA5-only/Surge-only 消融、CNN/CNN-LSTM/CNN-GRU/TCN/Transformer 对比、CNN-GRU 六步递归微调、72 小时滚动诊断和期刊绘图。1970—1995 训练、1996 验证和 1997 独立测试均已完成。运行方式见项目 README。
 
 ### 3. 加勒比短时预测
 
 位置：`projects/caribbean_forecast/caribbean_short_term_forecast/`
 
-当前主要站点为 Prickly Bay，包含数据预处理、模型训练、直接与滚动预测、ERA5 消融、物理特征实验、测试、模型和实验产物。从 `projects/caribbean_forecast/` 目录运行项目 README 中的命令。
+当前主要站点为 Prickly Bay，包含数据预处理、模型训练、直接与滚动预测、ERA5 消融、物理特征实验和 2018 独立测试；同时已移植厦门 CNN-GRU 与 rollout-6，在统一的 1/3/6/12/24/48/72 h 口径下完成跨站比较。从项目目录运行 README 中的命令。
 
 注意：`outputs/` 中约 1.3 GB 的处理数据和实验结果、`models/` 中的权重均不随普通 Git 提交保存，应单独备份。
 
@@ -39,6 +39,19 @@
 
 - `tools/realtime_crawlers/`：浙江潮位、台风、GFS 等实时数据采集工具。
 - `tools/zhejiang_export/zhejiang_excel_export_20260812/`：浙江台风数据检查和 Excel 导出脚本。
+
+## 稳定成果
+
+当前稳定成果已集中在 `reports/experiment_results/`：
+
+- `xiamen_short_term_1996_seed42/`：厦门 1996 验证结果；
+- `xiamen_short_term_1997_seed42/`：厦门 1997 独立测试结果；
+- `prickly_bay_short_term_2018_seed42/`：Prickly Bay 2018 独立测试与期刊图；
+- `prickly_bay_core_aligned_2018_seed42/`：与厦门核心模型对齐的结果；
+- `station_core_comparison/`：两站统一模型指标；
+- `station_mechanism_comparison_complete/`：两站 ACF、增水尺度、Persistence 衰减和强事件机制对比。
+
+这些目录只包含可提交 Git 的指标、说明和关键图片，不包含原始数据、逐时大数组或模型权重。
 
 ## 报告
 
