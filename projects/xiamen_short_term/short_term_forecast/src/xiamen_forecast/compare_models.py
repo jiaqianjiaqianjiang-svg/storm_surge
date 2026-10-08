@@ -1,4 +1,4 @@
-"""Collect and plot one-step metrics from the formal Xiamen model runs."""
+"""Collect and plot one-step metrics from formal station model runs."""
 
 from __future__ import annotations
 
@@ -14,6 +14,8 @@ import pandas as pd
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+from .station_config import STATIONS, get_station_config, validate_output_location
 
 
 MODULE_ROOT = Path(__file__).resolve().parents[2]
@@ -43,11 +45,12 @@ DISPLAY_NAMES = {
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--station", default="xiamen")
+    parser.add_argument("--station", choices=tuple(STATIONS), default="xiamen")
     parser.add_argument("--model-root", type=Path)
     parser.add_argument("--baseline-dir", type=Path)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--split", choices=("validation", "test"), default="validation")
+    parser.add_argument("--seed", type=int, default=42)
     return parser.parse_args()
 
 
@@ -97,7 +100,12 @@ def collect_model_metrics(
     return frame.sort_values("_order").drop(columns="_order").reset_index(drop=True)
 
 
-def plot_model_comparison(frame: pd.DataFrame, destination: Path, split: str) -> None:
+def plot_model_comparison(
+    frame: pd.DataFrame,
+    destination: Path,
+    split: str,
+    station_name: str = "Xiamen",
+) -> None:
     if frame.empty:
         raise ValueError("No model metrics are available for comparison")
     labels = [DISPLAY_NAMES[name] for name in frame.model]
@@ -129,7 +137,7 @@ def plot_model_comparison(frame: pd.DataFrame, destination: Path, split: str) ->
                     va="bottom" if value >= 0 else "top",
                     fontsize=8,
                 )
-    fig.suptitle(f"Xiamen one-hour forecast: {split} set", fontsize=12)
+    fig.suptitle(f"{station_name} one-hour forecast: {split} set", fontsize=12)
     fig.tight_layout()
     fig.savefig(destination, dpi=400, bbox_inches="tight")
     plt.close(fig)
@@ -137,8 +145,9 @@ def plot_model_comparison(frame: pd.DataFrame, destination: Path, split: str) ->
 
 def main() -> None:
     args = parse_args()
+    station = get_station_config(args.station)
     model_root = args.model_root or (
-        MODULE_ROOT / "models" / args.station / "formal_seed42"
+        MODULE_ROOT / "models" / args.station / f"formal_seed{args.seed}"
     )
     baseline_dir = args.baseline_dir or (
         MODULE_ROOT / "models" / args.station / "baselines"
@@ -146,11 +155,15 @@ def main() -> None:
     output = args.output_dir or (
         MODULE_ROOT / "outputs" / "experiments" / args.station / "model_comparison"
     )
+    validate_output_location(output, station.experiment_root, "Comparison output")
     output.mkdir(parents=True, exist_ok=True)
     frame = collect_model_metrics(model_root, baseline_dir, args.split)
     frame.to_csv(output / f"{args.split}_model_metrics.csv", index=False)
     plot_model_comparison(
-        frame, output / f"{args.split}_model_comparison.png", args.split
+        frame,
+        output / f"{args.split}_model_comparison.png",
+        args.split,
+        station.name,
     )
     print(frame.to_string(index=False))
     print(f"outputs: {output}")

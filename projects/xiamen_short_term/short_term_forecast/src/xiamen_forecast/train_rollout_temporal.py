@@ -1,4 +1,4 @@
-"""Fine-tune a temporal Xiamen model with recursive multi-step loss."""
+"""Fine-tune a station temporal model with recursive multi-step loss."""
 
 from __future__ import annotations
 
@@ -19,6 +19,12 @@ import matplotlib.pyplot as plt
 
 from .forecast_model import model_from_checkpoint
 from .rolling_diagnostics import atmospheric_validity, resolve_checkpoint_path
+from .station_config import (
+    STATIONS,
+    apply_station_defaults,
+    validate_dataset_identity,
+    validate_output_location,
+)
 from .train_rollout_cnn import rollout_origins, set_seed
 from .train_xiamen import amp_context, load_prepared, make_grad_scaler
 
@@ -29,11 +35,11 @@ SUPPORTED_MODELS = ("cnn_gru", "cnn_lstm", "tcn", "transformer")
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--station", default="xiamen")
+    parser.add_argument("--station", choices=tuple(STATIONS), default="xiamen")
     parser.add_argument("--model-type", choices=SUPPORTED_MODELS, default="cnn_gru")
-    parser.add_argument("--train-start-year", type=int, default=1970)
-    parser.add_argument("--train-end-year", type=int, default=1995)
-    parser.add_argument("--validation-year", type=int, default=1996)
+    parser.add_argument("--train-start-year", type=int)
+    parser.add_argument("--train-end-year", type=int)
+    parser.add_argument("--validation-year", type=int)
     parser.add_argument("--dataset-path", type=Path)
     parser.add_argument("--base-checkpoint", type=Path)
     parser.add_argument("--output-dir", type=Path)
@@ -201,17 +207,29 @@ def evaluate_recursive_mse(
 
 def main() -> None:
     args = parse_args()
+    station = apply_station_defaults(
+        args,
+        {
+            "train_start_year": "train_start_year",
+            "train_end_year": "train_end_year",
+            "validation_year": "validation_year",
+        },
+    )
     set_seed(args.seed)
     dataset_path = args.dataset_path or (
         MODULE_ROOT / "outputs" / "processed" / args.station / "aligned_dataset"
     )
-    checkpoint_root = MODULE_ROOT / "models" / args.station / "formal_seed42"
+    validate_dataset_identity(dataset_path, station.station_id)
+    checkpoint_root = (
+        MODULE_ROOT / "models" / args.station / f"formal_seed{args.seed}"
+    )
     base_path = args.base_checkpoint or resolve_checkpoint_path(
         checkpoint_root, args.model_type
     )
     output = args.output_dir or (
         checkpoint_root / f"{args.model_type}_rollout{args.rollout_steps}"
     )
+    validate_output_location(output, station.model_root, "Rollout model output")
     output.mkdir(parents=True, exist_ok=True)
     device = torch.device(
         "cuda"
@@ -230,6 +248,12 @@ def main() -> None:
     if (times.year > args.validation_year).any():
         raise AssertionError("Test-year data entered rollout training")
     checkpoint = torch.load(base_path, map_location=device, weights_only=False)
+    checkpoint_station = checkpoint.get("station_id")
+    if checkpoint_station not in (None, station.station_id):
+        raise ValueError(
+            f"Checkpoint belongs to {checkpoint_station}, not {station.station_id}: "
+            f"{base_path}"
+        )
     model = model_from_checkpoint(checkpoint).to(device)
     if not hasattr(model, "forward_encoded"):
         raise TypeError(f"{args.model_type} does not support encoded rollout training")
@@ -436,6 +460,10 @@ def main() -> None:
     fig.savefig(output / "loss_curve.png", dpi=300)
     plt.close(fig)
     metadata = {
+        "station": station.station_id,
+        "station_name": station.name,
+        "training_years": [args.train_start_year, args.train_end_year],
+        "validation_year": args.validation_year,
         "test_year_loaded": False,
         "base_model_type": args.model_type,
         "base_checkpoint": str(base_path),

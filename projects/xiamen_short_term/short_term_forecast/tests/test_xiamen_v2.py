@@ -145,9 +145,10 @@ def test_teacher_forcing_reaches_zero_before_early_stopping() -> None:
 
 def test_final_test_runner_uses_test_split_and_1997(tmp_path: Path) -> None:
     commands = build_commands(1997, 42, "cuda", "en", tmp_path / "model.pth")
-    assert len(commands) == 4
-    assert all("test" in command for command in commands)
-    assert all("1997" in command for command in commands[1:])
+    assert len(commands) == 6
+    assert all("test" in command for command in commands[1:])
+    assert "1997" in commands[1]
+    assert all("1997" in command for command in commands[3:])
 
 
 def test_rollout_origins_respect_year_and_complete_windows() -> None:

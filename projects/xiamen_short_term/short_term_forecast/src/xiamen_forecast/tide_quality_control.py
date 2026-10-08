@@ -21,6 +21,14 @@ def _normalise_flags(series: pd.Series) -> pd.Series:
     return series.astype("string").str.strip().str.lower()
 
 
+def _flag_counts(series: pd.Series) -> dict[str, int]:
+    normalised = _normalise_flags(series).fillna("<missing>")
+    return {
+        str(flag): int(count)
+        for flag, count in normalised.value_counts(dropna=False).sort_index().items()
+    }
+
+
 def _sensor_metrics(group: pd.DataFrame) -> dict[str, float | int | str]:
     valid = group.dropna(subset=["datetime", "water_level"]).sort_values("datetime")
     if valid.empty:
@@ -54,6 +62,17 @@ def quality_control(
         raise ValueError(f"QC input is missing columns: {sorted(missing_columns)}")
     work = frame.copy()
     raw_count = len(work)
+    quality_flag_counts = _flag_counts(work.qc_flag)
+    use_flag_counts = _flag_counts(work.use_flag)
+    flag_pairs = (
+        _normalise_flags(work.qc_flag).fillna("<missing>")
+        + "|"
+        + _normalise_flags(work.use_flag).fillna("<missing>")
+    )
+    quality_use_flag_pairs = {
+        str(pair): int(count)
+        for pair, count in flag_pairs.value_counts().sort_index().items()
+    }
     work["datetime"] = pd.to_datetime(work["datetime"], errors="coerce", utc=True)
     work["water_level"] = pd.to_numeric(work["water_level"], errors="coerce")
     invalid_datetime = int(work.datetime.isna().sum())
@@ -66,6 +85,9 @@ def quality_control(
     work = work.dropna(subset=["water_level"])
     qc_bad = _normalise_flags(work.qc_flag).isin(BAD_QC)
     use_bad = _normalise_flags(work.use_flag).isin(BAD_USE)
+    bad_qc_count = int(qc_bad.sum())
+    bad_use_count = int(use_bad.sum())
+    bad_both_count = int((qc_bad & use_bad).sum())
     flag_count = int((qc_bad | use_bad).sum())
     work = work.loc[~(qc_bad | use_bad)].copy()
     unreasonable = work.water_level.abs() > unreasonable_limit_m
@@ -87,12 +109,24 @@ def quality_control(
         "removed_duplicate_count": duplicate_count,
         "removed_missing_count": missing_value_count,
         "removed_quality_flag_count": flag_count,
+        "removed_bad_qc_flag_count": bad_qc_count,
+        "removed_bad_use_flag_count": bad_use_count,
+        "removed_bad_qc_and_use_count": bad_both_count,
         "removed_unreasonable_count": unreasonable_count,
         "final_record_count": len(clean),
         "time_range": [clean.datetime.iloc[0].isoformat(), clean.datetime.iloc[-1].isoformat()],
         "missing_rate": round(missing_rate, 8),
         "selected_sensor": selected_sensor,
         "sensor_statistics": channel_stats,
+        "quality_flag_counts": quality_flag_counts,
+        "use_flag_counts": use_flag_counts,
+        "quality_use_flag_pairs": quality_use_flag_pairs,
+        "gesla_flag_policy": {
+            "accepted_qc_flags": "0 (not assessed), 1 (correct), 2 (interpolated)",
+            "rejected_qc_flags": sorted(BAD_QC),
+            "rejected_use_flags": sorted(BAD_USE),
+            "rule": "reject when either the contributor QC flag or GESLA use flag is rejected",
+        },
     }
     if report_path is not None:
         destination = Path(report_path)

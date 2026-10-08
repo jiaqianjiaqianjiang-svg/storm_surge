@@ -1,4 +1,4 @@
-"""Recursive Xiamen hindcast diagnostics with known future ERA5 forcing.
+"""Recursive station hindcast diagnostics with known future ERA5 forcing.
 
 This module deliberately loads data only through the selected evaluation year. It is a
 diagnostic of one-hour models under perfect atmospheric forcing, not an
@@ -25,11 +25,18 @@ try:
     from .evaluate import calculate_metrics
     from .evaluate_baselines import summarise_atmosphere
     from .forecast_model import model_from_checkpoint
+    from .station_config import (
+        STATIONS,
+        apply_station_defaults,
+        validate_dataset_identity,
+        validate_output_location,
+    )
     from .train_xiamen import load_prepared
 except ImportError:
     from evaluate import calculate_metrics
     from evaluate_baselines import summarise_atmosphere
     from forecast_model import model_from_checkpoint
+    from station_config import STATIONS, apply_station_defaults, validate_dataset_identity, validate_output_location
     from train_xiamen import load_prepared
 
 
@@ -66,24 +73,31 @@ def display_name(name: str) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--station", default="xiamen")
-    parser.add_argument("--train-start-year", type=int, default=1970)
+    parser.add_argument("--station", choices=tuple(STATIONS), default="xiamen")
+    parser.add_argument("--train-start-year", type=int)
     parser.add_argument(
         "--evaluation-year",
         "--validation-year",
         dest="evaluation_year",
         type=int,
-        default=1996,
-        help="Year to evaluate; --validation-year is retained as a compatibility alias.",
+        help="Year to evaluate; defaults to the configured validation year.",
     )
     parser.add_argument(
         "--split",
         choices=("validation", "test"),
-        help="Dataset role. Defaults to validation for 1996 and test otherwise.",
+        help="Defaults to validation for the configured validation year and test otherwise.",
+    )
+    parser.add_argument(
+        "--models",
+        nargs="+",
+        choices=NEURAL_MODEL_NAMES,
+        default=list(NEURAL_MODEL_NAMES),
+        help="Neural checkpoints to include; persistence and ridge are always included.",
     )
     parser.add_argument("--input-steps", type=int, default=24)
     parser.add_argument("--max-lead", type=int, default=72)
     parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--dataset-path", type=Path)
     parser.add_argument("--checkpoint-root", type=Path)
     parser.add_argument("--ridge-path", type=Path)
@@ -157,15 +171,22 @@ def load_models(
     checkpoint_root: Path,
     device: torch.device,
     rollout_checkpoint: Path | None = None,
+    model_names: tuple[str, ...] = NEURAL_MODEL_NAMES,
+    station_id: str | None = None,
 ) -> tuple[dict[str, torch.nn.Module], dict[str, Any], dict[str, Path]]:
     models: dict[str, torch.nn.Module] = {}
     checkpoints: dict[str, Any] = {}
     paths: dict[str, Path] = {}
-    for name in NEURAL_MODEL_NAMES:
+    for name in model_names:
         path = resolve_checkpoint_path(checkpoint_root, name)
         if not path.is_file():
             raise FileNotFoundError(f"Missing seed-42 checkpoint: {path}")
         checkpoint = torch.load(path, map_location=device, weights_only=False)
+        checkpoint_station = checkpoint.get("station_id")
+        if station_id is not None and checkpoint_station not in (None, station_id):
+            raise ValueError(
+                f"{name} checkpoint belongs to {checkpoint_station}, not {station_id}: {path}"
+            )
         model = model_from_checkpoint(checkpoint).to(device)
         model.eval()
         models[name] = model
@@ -177,6 +198,12 @@ def load_models(
         checkpoint = torch.load(
             rollout_checkpoint, map_location=device, weights_only=False
         )
+        checkpoint_station = checkpoint.get("station_id")
+        if station_id is not None and checkpoint_station not in (None, station_id):
+            raise ValueError(
+                "Rollout checkpoint belongs to "
+                f"{checkpoint_station}, not {station_id}: {rollout_checkpoint}"
+            )
         model = model_from_checkpoint(checkpoint).to(device)
         model.eval()
         rollout_metadata = checkpoint.get("rollout_training", {})
@@ -186,7 +213,10 @@ def load_models(
         models[rollout_name] = model
         checkpoints[rollout_name] = checkpoint
         paths[rollout_name] = rollout_checkpoint
-    reference = checkpoints["cnn"]["scalers"]
+    if not checkpoints:
+        raise ValueError("At least one neural model checkpoint is required")
+    reference_name = "cnn" if "cnn" in checkpoints else next(iter(checkpoints))
+    reference = checkpoints[reference_name]["scalers"]
     for name, checkpoint in checkpoints.items():
         if checkpoint["scalers"] != reference:
             raise ValueError(f"{name} uses scalers inconsistent with the CNN model")
@@ -482,7 +512,7 @@ def write_report(
         )
     table = markdown_table(wide)
     role_zh = "验证集" if metadata["split"] == "validation" else "独立测试集"
-    content = f"""# 厦门 {metadata['evaluation_year']} 年滚动预报诊断
+    content = f"""# {metadata['station_name']} {metadata['evaluation_year']} 年滚动预报诊断
 
 ## 实验边界
 
@@ -518,22 +548,35 @@ def write_report(
 
 def main() -> None:
     args = parse_args()
+    station = apply_station_defaults(
+        args,
+        {
+            "train_start_year": "train_start_year",
+            "evaluation_year": "validation_year",
+        },
+    )
     evaluation_year = args.evaluation_year
-    split = args.split or ("validation" if evaluation_year == 1996 else "test")
+    split = args.split or (
+        "validation" if evaluation_year == station.validation_year else "test"
+    )
     if args.input_steps != 24 or args.max_lead != 72:
         raise ValueError("This experiment is fixed to a 24-hour input and 72-hour recursion")
     dataset_path = args.dataset_path or (
         MODULE_ROOT / "outputs" / "processed" / args.station / "aligned_dataset"
     )
+    validate_dataset_identity(dataset_path, station.station_id)
     checkpoint_root = args.checkpoint_root or (
-        MODULE_ROOT / "models" / args.station / "formal_seed42"
+        MODULE_ROOT / "models" / args.station / f"formal_seed{args.seed}"
     )
     ridge_path = args.ridge_path or (
         MODULE_ROOT / "models" / args.station / "baselines" / "ridge_pipeline.joblib"
     )
     output = args.output_dir or (
         MODULE_ROOT / "outputs" / "experiments" / args.station
-        / f"rolling_{evaluation_year}_seed42"
+        / f"rolling_{evaluation_year}_seed{args.seed}"
+    )
+    validate_output_location(
+        output, station.experiment_root, "Rolling-diagnostic output"
     )
     output.mkdir(parents=True, exist_ok=True)
     device = torch.device(
@@ -560,7 +603,11 @@ def main() -> None:
     print(f"common forecast origins: {len(origins)}", flush=True)
 
     models, checkpoints, checkpoint_paths = load_models(
-        checkpoint_root, device, args.rollout_checkpoint
+        checkpoint_root,
+        device,
+        args.rollout_checkpoint,
+        tuple(args.models),
+        station.station_id,
     )
     ridge = joblib.load(ridge_path)
     summaries = summarise_atmosphere(atmosphere)
@@ -571,7 +618,7 @@ def main() -> None:
         summaries,
         ridge,
         models,
-        checkpoints["cnn"]["scalers"],
+        next(iter(checkpoints.values()))["scalers"],
         args.input_steps,
         args.max_lead,
         args.batch_size,
@@ -587,6 +634,8 @@ def main() -> None:
     plot_rmse(metrics, output / "rmse_vs_lead.png", evaluation_year)
     events = plot_strong_events(output, times, surge, origins, predictions, args.max_lead)
     metadata = {
+        "station": station.station_id,
+        "station_name": station.name,
         "experiment_name_zh": "已知未来大气强迫条件下的历史滚动回算",
         "operational_forecast": False,
         "evaluation_year": evaluation_year,

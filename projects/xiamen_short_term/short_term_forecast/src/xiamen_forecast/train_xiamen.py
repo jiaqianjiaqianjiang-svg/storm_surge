@@ -1,4 +1,4 @@
-"""Train leakage-safe one-hour Xiamen models from prepared aligned arrays."""
+"""Train leakage-safe one-hour station models from prepared aligned arrays."""
 
 from __future__ import annotations
 
@@ -16,15 +16,30 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 try:
-    from .dataset_builder import build_datasets, build_year_datasets
+    from .dataset_builder import (
+        build_datasets,
+        build_train_validation_year_datasets,
+        build_year_datasets,
+    )
     from .evaluate import calculate_detailed_metrics
     from .forecast_model import MODEL_TYPES, create_model
     from .plotting import loss_curve, observed_vs_predicted, validation_scatter
+    from .station_config import (
+        STATIONS,
+        apply_station_defaults,
+        validate_dataset_identity,
+        validate_output_location,
+    )
 except ImportError:
-    from dataset_builder import build_datasets, build_year_datasets
+    from dataset_builder import (
+        build_datasets,
+        build_train_validation_year_datasets,
+        build_year_datasets,
+    )
     from evaluate import calculate_detailed_metrics
     from forecast_model import MODEL_TYPES, create_model
     from plotting import loss_curve, observed_vs_predicted, validation_scatter
+    from station_config import STATIONS, apply_station_defaults, validate_dataset_identity, validate_output_location
 
 
 MODULE_ROOT = Path(__file__).resolve().parents[2]
@@ -32,14 +47,19 @@ MODULE_ROOT = Path(__file__).resolve().parents[2]
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--station", default="xiamen")
-    parser.add_argument("--start-year", type=int, default=1970)
-    parser.add_argument("--end-year", type=int, default=1997)
+    parser.add_argument("--station", choices=tuple(STATIONS), default="xiamen")
+    parser.add_argument("--start-year", type=int)
+    parser.add_argument("--end-year", type=int)
     parser.add_argument("--split-mode", choices=["ratio", "years"], default="years")
-    parser.add_argument("--train-start-year", type=int, default=1970)
-    parser.add_argument("--train-end-year", type=int, default=1995)
-    parser.add_argument("--validation-year", type=int, default=1996)
-    parser.add_argument("--test-year", type=int, default=1997)
+    parser.add_argument("--train-start-year", type=int)
+    parser.add_argument("--train-end-year", type=int)
+    parser.add_argument("--validation-year", type=int)
+    parser.add_argument("--test-year", type=int)
+    parser.add_argument(
+        "--validation-only",
+        action="store_true",
+        help="Do not load or evaluate the configured independent test year.",
+    )
     parser.add_argument("--input-steps", type=int, default=24)
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=16)
@@ -100,7 +120,7 @@ def load_prepared(path: Path, start_year: int, end_year: int) -> tuple[np.ndarra
     else:
         raise FileNotFoundError(
             f"Prepared dataset not found: {path}. Run inspect_data.py, QC/UTide, ERA5 loading, "
-            "then run prepare_xiamen.py first."
+            "then run prepare_xiamen.py --station <station> first."
         )
     positions = np.flatnonzero((times.year >= start_year) & (times.year <= end_year))
     if not len(positions):
@@ -110,21 +130,52 @@ def load_prepared(path: Path, start_year: int, end_year: int) -> tuple[np.ndarra
 
 
 def main() -> None:
-    args = parse_args(); set_seed(args.seed)
-    dataset_path = args.dataset_path or MODULE_ROOT / "outputs" / "processed" / args.station / "aligned_dataset"
-    output = args.output_dir or (
-        MODULE_ROOT / "models" / args.station / "formal_seed42" / args.model_type
+    args = parse_args()
+    station = apply_station_defaults(
+        args,
+        {
+            "start_year": "data_start_year",
+            "end_year": "data_end_year",
+            "train_start_year": "train_start_year",
+            "train_end_year": "train_end_year",
+            "validation_year": "validation_year",
+            "test_year": "test_year",
+        },
     )
+    set_seed(args.seed)
+    dataset_path = args.dataset_path or MODULE_ROOT / "outputs" / "processed" / args.station / "aligned_dataset"
+    validate_dataset_identity(dataset_path, station.station_id)
+    output = args.output_dir or (
+        MODULE_ROOT / "models" / args.station / f"formal_seed{args.seed}" / args.model_type
+    )
+    validate_output_location(output, station.model_root, "Model output")
     output.mkdir(parents=True, exist_ok=True)
     if args.split_mode == "years" and not args.smoke_test:
-        load_start, load_end = args.train_start_year, args.test_year
+        load_start = args.train_start_year
+        load_end = (
+            args.validation_year if args.validation_only else args.test_year
+        )
     else:
         load_start, load_end = args.start_year, args.end_year
     atmosphere, surge, times = load_prepared(dataset_path, load_start, load_end)
     if args.smoke_test:
         limit = min(len(times), max(args.input_steps + 16, 64)); atmosphere, surge, times = atmosphere[:limit], surge[:limit], times[:limit]
         args.epochs = min(args.epochs, 2)
-    if args.split_mode == "years" and not args.smoke_test:
+    if args.split_mode == "years" and not args.smoke_test and args.validation_only:
+        train_set, validation_set, dataset_report = (
+            build_train_validation_year_datasets(
+                atmosphere,
+                surge,
+                times,
+                args.input_steps,
+                args.train_start_year,
+                args.train_end_year,
+                args.validation_year,
+                args.model_type,
+            )
+        )
+        test_set = None
+    elif args.split_mode == "years" and not args.smoke_test:
         train_set, validation_set, test_set, dataset_report = build_year_datasets(
             atmosphere, surge, times, args.input_steps,
             args.train_start_year, args.train_end_year,
@@ -212,6 +263,7 @@ def main() -> None:
             checkpoint = {
                 **model.architecture_config(), "model_state_dict": model.state_dict(),
                 "scalers": dataset_report["scalers"], "station_id": args.station,
+                "station_name": station.name,
                 "training_time_range": dataset_report["train_time_range"],
                 "dataset_split": dataset_report,
                 "selection_metric": (

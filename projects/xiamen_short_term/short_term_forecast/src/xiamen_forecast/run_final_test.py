@@ -1,4 +1,4 @@
-"""Run the fixed Xiamen independent-test workflow without retraining models."""
+"""Run a fixed station independent-test workflow without retraining models."""
 
 from __future__ import annotations
 
@@ -7,13 +7,16 @@ from pathlib import Path
 import subprocess
 import sys
 
+from .station_config import STATIONS, get_station_config
+
 
 MODULE_ROOT = Path(__file__).resolve().parents[2]
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--year", type=int, default=1997)
+    parser.add_argument("--station", choices=tuple(STATIONS), default="xiamen")
+    parser.add_argument("--year", type=int)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="cuda")
     parser.add_argument("--language", choices=("en", "zh"), default="en")
@@ -27,6 +30,7 @@ def build_commands(
     device: str,
     language: str,
     rollout_checkpoint: Path,
+    station: str = "xiamen",
 ) -> list[list[str]]:
     python = sys.executable
     common_year = str(year)
@@ -34,20 +38,55 @@ def build_commands(
         [
             python,
             "-m",
-            "src.xiamen_forecast.compare_models",
+            "src.xiamen_forecast.evaluate_baselines",
+            "--station",
+            station,
+        ],
+        [
+            python,
+            "-m",
+            "src.xiamen_forecast.evaluate_checkpoints",
+            "--station",
+            station,
             "--split",
             "test",
+            "--seed",
+            str(seed),
+            "--year",
+            common_year,
+            "--device",
+            device,
+        ],
+        [
+            python,
+            "-m",
+            "src.xiamen_forecast.compare_models",
+            "--station",
+            station,
+            "--split",
+            "test",
+            "--seed",
+            str(seed),
         ],
         [
             python,
             "-m",
             "src.xiamen_forecast.rolling_diagnostics",
+            "--station",
+            station,
+            "--models",
+            "surge_mlp",
+            "era5_cnn",
+            "cnn",
+            "cnn_gru",
             "--evaluation-year",
             common_year,
             "--split",
             "test",
             "--device",
             device,
+            "--seed",
+            str(seed),
             "--rollout-checkpoint",
             str(rollout_checkpoint),
         ],
@@ -55,6 +94,8 @@ def build_commands(
             python,
             "-m",
             "src.short_term_forecast.journal_figures.make_xiamen_journal_figures",
+            "--station",
+            station,
             "--validation-year",
             common_year,
             "--split",
@@ -68,6 +109,8 @@ def build_commands(
             python,
             "-m",
             "src.xiamen_forecast.export_final_results",
+            "--station",
+            station,
             "--evaluation-year",
             common_year,
             "--split",
@@ -80,12 +123,17 @@ def build_commands(
 
 def main() -> None:
     args = parse_args()
-    if args.year != 1997:
-        raise ValueError("The formal independent-test workflow is fixed to 1997")
+    station = get_station_config(args.station)
+    year = station.test_year if args.year is None else args.year
+    if year != station.test_year:
+        raise ValueError(
+            f"The {station.name} independent-test workflow is fixed to "
+            f"{station.test_year}"
+        )
     checkpoint = args.rollout_checkpoint or (
         MODULE_ROOT
         / "models"
-        / "xiamen"
+        / station.station_id
         / f"formal_seed{args.seed}"
         / "cnn_gru_rollout6"
         / "best_model.pth"
@@ -94,13 +142,13 @@ def main() -> None:
         raise FileNotFoundError(f"Rollout checkpoint not found: {checkpoint}")
 
     commands = build_commands(
-        args.year, args.seed, args.device, args.language, checkpoint
+        year, args.seed, args.device, args.language, checkpoint, station.station_id
     )
     for index, command in enumerate(commands, start=1):
         print(f"[{index}/{len(commands)}] {' '.join(command)}", flush=True)
         subprocess.run(command, cwd=MODULE_ROOT, check=True)
 
-    print("1997 independent-test workflow completed.", flush=True)
+    print(f"{station.name} {year} independent-test workflow completed.", flush=True)
 
 
 if __name__ == "__main__":

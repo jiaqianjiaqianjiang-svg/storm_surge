@@ -15,13 +15,18 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 try:
-    from .dataset_builder import build_year_datasets
+    from .dataset_builder import (
+        build_train_validation_year_datasets,
+        build_year_datasets,
+    )
     from .evaluate import calculate_detailed_metrics
     from .train_xiamen import load_prepared
+    from .station_config import STATIONS, apply_station_defaults, get_station_config, validate_dataset_identity, validate_output_location
 except ImportError:
-    from dataset_builder import build_year_datasets
+    from dataset_builder import build_train_validation_year_datasets, build_year_datasets
     from evaluate import calculate_detailed_metrics
     from train_xiamen import load_prepared
+    from station_config import STATIONS, apply_station_defaults, get_station_config, validate_dataset_identity, validate_output_location
 
 
 MODULE_ROOT = Path(__file__).resolve().parents[2]
@@ -65,27 +70,50 @@ def evaluate_baselines(
     validation_year: int = 1996,
     test_year: int = 1997,
     ridge_alpha: float = 10.0,
+    include_test: bool = True,
 ) -> dict[str, Any]:
     atmosphere, surge, times = load_prepared(
-        Path(dataset_path), train_start_year, test_year
+        Path(dataset_path),
+        train_start_year,
+        test_year if include_test else validation_year,
     )
-    train, validation, test, split_report = build_year_datasets(
-        atmosphere, surge, times, input_steps,
-        train_start_year, train_end_year, validation_year, test_year,
-    )
+    if include_test:
+        train, validation, test, split_report = build_year_datasets(
+            atmosphere,
+            surge,
+            times,
+            input_steps,
+            train_start_year,
+            train_end_year,
+            validation_year,
+            test_year,
+        )
+        datasets = {"validation": validation, "test": test}
+    else:
+        train, validation, split_report = build_train_validation_year_datasets(
+            atmosphere,
+            surge,
+            times,
+            input_steps,
+            train_start_year,
+            train_end_year,
+            validation_year,
+        )
+        datasets = {"validation": validation}
     summaries = summarise_atmosphere(atmosphere)
     features = {
-        "train": build_ridge_features(summaries, surge, train.targets, input_steps),
-        "validation": build_ridge_features(
-            summaries, surge, validation.targets, input_steps
-        ),
-        "test": build_ridge_features(summaries, surge, test.targets, input_steps),
+        "train": build_ridge_features(summaries, surge, train.targets, input_steps)
     }
     observed = {
-        "train": np.asarray(surge[train.targets], dtype=np.float32),
-        "validation": np.asarray(surge[validation.targets], dtype=np.float32),
-        "test": np.asarray(surge[test.targets], dtype=np.float32),
+        "train": np.asarray(surge[train.targets], dtype=np.float32)
     }
+    for split_name, dataset in datasets.items():
+        features[split_name] = build_ridge_features(
+            summaries, surge, dataset.targets, input_steps
+        )
+        observed[split_name] = np.asarray(
+            surge[dataset.targets], dtype=np.float32
+        )
     ridge = Pipeline(
         [
             ("standardise", StandardScaler()),
@@ -97,7 +125,6 @@ def evaluate_baselines(
     destination.mkdir(parents=True, exist_ok=True)
     joblib.dump(ridge, destination / "ridge_pipeline.joblib")
 
-    datasets = {"validation": validation, "test": test}
     report: dict[str, Any] = {
         "split": split_report,
         "ridge": {
@@ -144,28 +171,46 @@ def evaluate_baselines(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--station", default="xiamen")
+    parser.add_argument("--station", choices=tuple(STATIONS), default="xiamen")
     parser.add_argument("--dataset-path", type=Path)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--input-steps", type=int, default=24)
-    parser.add_argument("--train-start-year", type=int, default=1970)
-    parser.add_argument("--train-end-year", type=int, default=1995)
-    parser.add_argument("--validation-year", type=int, default=1996)
-    parser.add_argument("--test-year", type=int, default=1997)
+    parser.add_argument("--train-start-year", type=int)
+    parser.add_argument("--train-end-year", type=int)
+    parser.add_argument("--validation-year", type=int)
+    parser.add_argument("--test-year", type=int)
     parser.add_argument("--ridge-alpha", type=float, default=10.0)
+    parser.add_argument(
+        "--validation-only",
+        action="store_true",
+        help="Do not load or report the independent test year.",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     arguments = parse_args()
+    apply_station_defaults(
+        arguments,
+        {
+            "train_start_year": "train_start_year",
+            "train_end_year": "train_end_year",
+            "validation_year": "validation_year",
+            "test_year": "test_year",
+        },
+    )
     dataset = arguments.dataset_path or (
         MODULE_ROOT / "outputs" / "processed" / arguments.station / "aligned_dataset"
     )
+    validate_dataset_identity(dataset, arguments.station)
     output = arguments.output_dir or MODULE_ROOT / "models" / arguments.station / "baselines"
+    station = get_station_config(arguments.station)
+    validate_output_location(output, station.model_root, "Baseline output")
     result = evaluate_baselines(
         dataset, output, arguments.input_steps,
         arguments.train_start_year, arguments.train_end_year,
         arguments.validation_year, arguments.test_year,
         arguments.ridge_alpha,
+        not arguments.validation_only,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))

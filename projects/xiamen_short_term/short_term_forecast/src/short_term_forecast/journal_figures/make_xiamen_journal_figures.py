@@ -1,4 +1,4 @@
-"""Create the main journal figures for the formal Xiamen forecast experiment.
+"""Create journal figures for a formal Chinese-station forecast experiment.
 
 The script reads existing metrics and prediction tables. It never loads the
 large prepared ERA5 dataset, model checkpoints, or retrains a model.
@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from ...xiamen_forecast.station_config import STATIONS, get_station_config
 from . import io_utils
 from .plot_peak_analysis import plot_peak_analysis
 from .plot_residual_diagnostics import plot_residual_diagnostics
@@ -94,7 +95,7 @@ def discover_sources(
             repository
             / "reports"
             / "experiment_results"
-            / f"xiamen_short_term_{validation_year}_seed{seed}"
+            / f"{station}_short_term_{validation_year}_seed{seed}"
         )
     package = Path(result_package) if result_package is not None else None
     experiment_root = project_root / "outputs" / "experiments" / station
@@ -592,11 +593,12 @@ def _write_guide(
     manifest: pd.DataFrame,
     evaluation_year: int,
     split: str,
+    station_name: str = "Xiamen",
 ) -> None:
     completed = manifest.loc[manifest["status"] == "ok", "figure_name"].tolist()
     skipped = manifest.loc[manifest["status"] != "ok", ["figure_name", "warning"]]
     lines = [
-        "# Xiamen journal figure guide",
+        f"# {station_name} journal figure guide",
         "",
         f"These figures use existing {evaluation_year} {split} and historical-hindcast results. No model was retrained.",
         "The rolling experiment uses known future ERA5 reanalysis forcing and is not an operational forecast.",
@@ -631,13 +633,23 @@ def make_xiamen_journal_figures(
     output_dir: Path | None = None,
     result_package: Path | None = None,
     station: str = "xiamen",
-    validation_year: int = 1996,
+    validation_year: int | None = None,
     seed: int = 42,
     language: str = "en",
     split: str | None = None,
 ) -> pd.DataFrame:
     project_root = Path(project_root)
-    split = split or ("validation" if validation_year == 1996 else "test")
+    station_config = get_station_config(station)
+    validation_year = (
+        station_config.validation_year
+        if validation_year is None
+        else validation_year
+    )
+    split = split or (
+        "validation"
+        if validation_year == station_config.validation_year
+        else "test"
+    )
     output_dir = Path(output_dir) if output_dir else (
         project_root / "outputs" / "journal_figures" / f"{station}_{validation_year}_seed{seed}"
     )
@@ -712,7 +724,9 @@ def make_xiamen_journal_figures(
 
     manifest = pd.DataFrame(rows)
     manifest.to_csv(output_dir / "figure_manifest.csv", index=False, encoding="utf-8-sig")
-    _write_guide(output_dir, manifest, validation_year, split)
+    _write_guide(
+        output_dir, manifest, validation_year, split, station_config.name
+    )
     print(manifest.to_string(index=False))
     print(f"Figures: {output_dir}")
     return manifest
@@ -723,8 +737,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--project-root", type=Path, default=PROJECT_ROOT)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--result-package", type=Path)
-    parser.add_argument("--station", default="xiamen")
-    parser.add_argument("--validation-year", type=int, default=1996)
+    parser.add_argument("--station", choices=tuple(STATIONS), default="xiamen")
+    parser.add_argument("--validation-year", type=int)
     parser.add_argument("--split", choices=("validation", "test"))
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--language", choices=("en", "zh"), default="en")

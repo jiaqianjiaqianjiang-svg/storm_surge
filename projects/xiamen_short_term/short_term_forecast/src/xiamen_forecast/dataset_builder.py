@@ -260,3 +260,85 @@ def build_year_datasets(
         },
     }
     return train, validation, test, report
+
+
+def build_train_validation_year_datasets(
+    atmosphere: np.ndarray | xr.DataArray,
+    surge: np.ndarray,
+    times: object,
+    input_steps: int = 24,
+    train_start_year: int = 1970,
+    train_end_year: int = 1995,
+    validation_year: int = 1996,
+    model_type: str = "cnn",
+) -> tuple[SchemeBDataset, SchemeBDataset, dict[str, Any]]:
+    """Build train/validation datasets without loading or exposing a test year."""
+    if not train_start_year <= train_end_year < validation_year:
+        raise ValueError(
+            "Expected train_start_year <= train_end_year < validation_year"
+        )
+    index = pd.DatetimeIndex(pd.to_datetime(times))
+    if (index.year > validation_year).any():
+        raise ValueError("Data later than the validation year were supplied")
+    targets, skipped = valid_targets(index, atmosphere, surge, input_steps)
+    train_targets = [
+        target
+        for target in targets
+        if train_start_year <= index[target].year <= train_end_year
+    ]
+    validation_targets = [
+        target for target in targets if index[target].year == validation_year
+    ]
+    empty = [
+        name
+        for name, values in (
+            ("training", train_targets),
+            ("validation", validation_targets),
+        )
+        if not values
+    ]
+    if empty:
+        raise ValueError(f"No valid targets remain for split(s): {empty}")
+    training_positions = np.flatnonzero(
+        (index.year >= train_start_year) & (index.year <= train_end_year)
+    )
+    scalers = fit_scalers(
+        atmosphere,
+        np.asarray(surge),
+        int(training_positions[-1]) + 1,
+        int(training_positions[0]),
+    )
+    train = SchemeBDataset(
+        atmosphere, surge, index, train_targets, input_steps, scalers, model_type
+    )
+    validation = SchemeBDataset(
+        atmosphere,
+        surge,
+        index,
+        validation_targets,
+        input_steps,
+        scalers,
+        model_type,
+    )
+    report = {
+        "split_mode": "years_validation_only",
+        "input_steps": input_steps,
+        "valid_samples": len(targets),
+        "train_years": [train_start_year, train_end_year],
+        "validation_year": validation_year,
+        "test_year_loaded": False,
+        "train_samples": len(train),
+        "validation_samples": len(validation),
+        "skipped": skipped,
+        "train_time_range": [
+            str(index[train_targets[0]]), str(index[train_targets[-1]])
+        ],
+        "validation_time_range": [
+            str(index[validation_targets[0]]),
+            str(index[validation_targets[-1]]),
+        ],
+        "scalers": {
+            name: scaler.state_dict() for name, scaler in scalers.items()
+        },
+    }
+    return train, validation, report

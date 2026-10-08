@@ -22,6 +22,11 @@ COORD_ALIASES = {
     "latitude": ("latitude", "lat", "y"),
     "longitude": ("longitude", "lon", "x"),
 }
+EXPECTED_VARIABLE_UNITS = {
+    "U10": {"m/s", "m s-1", "m s**-1", "m s^-1"},
+    "V10": {"m/s", "m s-1", "m s**-1", "m s^-1"},
+    "MSL": {"pa", "pascal", "pascals"},
+}
 
 
 def _find_name(candidates: Sequence[str], available: Sequence[str], kind: str) -> str:
@@ -40,6 +45,102 @@ def _open(path: Path) -> xr.Dataset:
         except (ImportError, ValueError) as exc:
             raise RuntimeError(f"Could not open GRIB {path}; install cfgrib and eccodes") from exc
     return xr.open_dataset(path)
+
+
+def inspect_era5_files(paths: Sequence[str | Path]) -> dict[str, object]:
+    """Inspect source coordinates and units without loading gridded values."""
+    period_paths = [Path(path) for path in paths]
+    reports: dict[str, dict[str, object]] = {}
+    errors: list[str] = []
+    warnings: list[str] = []
+    reference: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None
+    for path in period_paths:
+        dataset: xr.Dataset | None = None
+        try:
+            dataset = _open(path)
+            names = list(dataset.coords) + list(dataset.dims)
+            time_name = _find_name(COORD_ALIASES["time"], names, "time coordinate")
+            lat_name = _find_name(COORD_ALIASES["latitude"], names, "latitude coordinate")
+            lon_name = _find_name(COORD_ALIASES["longitude"], names, "longitude coordinate")
+            times = pd.DatetimeIndex(pd.to_datetime(dataset[time_name].values))
+            latitudes = np.sort(np.asarray(dataset[lat_name].values, dtype=float))
+            longitudes = np.sort(
+                ((np.asarray(dataset[lon_name].values, dtype=float) + 180) % 360) - 180
+            )
+            if len(times) < 2 or not np.all(
+                np.diff(times.values) == np.timedelta64(1, "h")
+            ):
+                errors.append(f"{path.name}: ERA5 time coordinate is not continuous hourly")
+            signature = (times.values, latitudes, longitudes)
+            if reference is None:
+                reference = signature
+            elif not all(
+                np.array_equal(current, expected)
+                for current, expected in zip(signature, reference)
+            ):
+                errors.append(
+                    f"{path.name}: time/latitude/longitude coordinates differ from the first ERA5 file"
+                )
+            matched_variables = []
+            for canonical, aliases in VARIABLE_ALIASES.items():
+                matches = [
+                    name
+                    for name in dataset.data_vars
+                    if name.lower() in {alias.lower() for alias in aliases}
+                ]
+                for variable_name in matches:
+                    matched_variables.append(canonical)
+                    if canonical in reports:
+                        errors.append(f"Duplicate ERA5 variable {canonical}: {path.name}")
+                        continue
+                    unit = str(dataset[variable_name].attrs.get("units", "")).strip()
+                    normalised_unit = unit.lower().replace("metres", "m").replace(
+                        "meters", "m"
+                    )
+                    if not unit:
+                        warnings.append(f"{path.name}: {canonical} has no units attribute")
+                    elif normalised_unit not in EXPECTED_VARIABLE_UNITS[canonical]:
+                        errors.append(
+                            f"{path.name}: unexpected {canonical} unit '{unit}'"
+                        )
+                    reports[canonical] = {
+                        "file": str(path),
+                        "source_variable": variable_name,
+                        "unit": unit or None,
+                        "time_count": int(len(times)),
+                        "time_range": [
+                            times.min().isoformat() if len(times) else None,
+                            times.max().isoformat() if len(times) else None,
+                        ],
+                        "latitude_count": int(len(latitudes)),
+                        "latitude_range": [
+                            float(latitudes.min()), float(latitudes.max())
+                        ],
+                        "longitude_count": int(len(longitudes)),
+                        "longitude_range": [
+                            float(longitudes.min()), float(longitudes.max())
+                        ],
+                    }
+            if not matched_variables:
+                errors.append(f"{path.name}: no U10, V10, or MSL variable was identified")
+        except Exception as exc:
+            errors.append(f"{path.name}: metadata inspection failed: {exc}")
+        finally:
+            if dataset is not None:
+                dataset.close()
+    missing = [name for name in VARIABLE_ALIASES if name not in reports]
+    if missing:
+        errors.append(f"ERA5 source set is missing variables: {missing}")
+    return {
+        "status": "failed" if errors else ("warning" if warnings else "passed"),
+        "coordinate_axes_identical": not any(
+            "coordinates differ" in message for message in errors
+        ),
+        "variable_order": list(VARIABLE_ALIASES),
+        "variables": reports,
+        "errors": errors,
+        "warnings": warnings,
+    }
 
 
 def load_era5_file(

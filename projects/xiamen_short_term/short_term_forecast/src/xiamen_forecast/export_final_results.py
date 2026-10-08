@@ -1,4 +1,4 @@
-"""Export compact Xiamen result summaries that are safe to commit to Git."""
+"""Export compact station result summaries that are safe to commit to Git."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ import shutil
 from pathlib import Path
 
 import pandas as pd
+
+from .station_config import STATIONS, apply_station_defaults
 
 
 MODULE_ROOT = Path(__file__).resolve().parents[2]
@@ -56,13 +58,12 @@ def repository_root(start: Path) -> Path:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--station", default="xiamen")
+    parser.add_argument("--station", choices=tuple(STATIONS), default="xiamen")
     parser.add_argument(
         "--evaluation-year",
         "--validation-year",
         dest="evaluation_year",
         type=int,
-        default=1996,
     )
     parser.add_argument("--split", choices=("validation", "test"))
     parser.add_argument("--seed", type=int, default=42)
@@ -111,6 +112,7 @@ def build_summary(
     validation_year: int,
     seed: int,
     split: str = "validation",
+    station_name: str = "Xiamen",
 ) -> None:
     ranked = validation_metrics.sort_values("rmse_cm").copy()
     ranked.insert(0, "rank", range(1, len(ranked) + 1))
@@ -132,7 +134,7 @@ def build_summary(
     gains["rmse_reduction_percent"] = (
         100 * (1 - gains[rollout_column] / gains[base_column])
     )
-    content = f"""# Xiamen Short-Term Forecast Results
+    content = f"""# {station_name} Short-Term Forecast Results
 
 ## Experiment
 
@@ -170,14 +172,19 @@ and model weights remain excluded from Git.
 
 def main() -> None:
     args = parse_args()
+    station = apply_station_defaults(
+        args, {"evaluation_year": "validation_year"}
+    )
     evaluation_year = args.evaluation_year
-    split = args.split or ("validation" if evaluation_year == 1996 else "test")
+    split = args.split or (
+        "validation" if evaluation_year == station.validation_year else "test"
+    )
     repository = repository_root(MODULE_ROOT)
     destination = args.output_dir or (
         repository
         / "reports"
         / "experiment_results"
-        / f"xiamen_short_term_{evaluation_year}_seed{args.seed}"
+        / f"{station.station_id}_short_term_{evaluation_year}_seed{args.seed}"
     )
     destination.mkdir(parents=True, exist_ok=True)
 
@@ -250,6 +257,7 @@ def main() -> None:
         evaluation_year,
         args.seed,
         split,
+        station.name,
     )
     print(f"Git-safe result package: {destination}")
     print("Review it, then commit only this reports/experiment_results directory.")

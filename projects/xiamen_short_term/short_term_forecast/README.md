@@ -1,6 +1,98 @@
-# 厦门小时级短时风暴潮预报
+# 中国沿海多站点小时级短时风暴增水预测
 
-正式实验统一使用 `src/xiamen_forecast/`。`src/short_term_forecast/` 仅保留期刊绘图和公用指标；已经被新流程替代的旧模型、旧训练器和旧滚动脚本已删除，避免两套入口混用。
+正式实验统一使用 `src/xiamen_forecast/`。这个包名为兼容已有厦门命令而保留，内部流程现已支持 `xiamen`、`lianyungang` 和 `beihai`，没有为新站点复制第二套项目。`src/short_term_forecast/` 仅保留期刊绘图和公用指标。
+
+## 多站点配置与实验边界
+
+站点、经纬度、原始文件名、年份划分和独立输出目录集中定义在 `src/xiamen_forecast/station_config.py`：
+
+| station参数 | 站点 | 数据年份 | 训练 | 验证 | 独立测试 |
+|---|---|---:|---:|---:|---:|
+| `xiamen` | 厦门 | 1970—1997 | 1970—1995 | 1996 | 1997 |
+| `lianyungang` | 连云港 | 1975—1997 | 1975—1995 | 1996 | 1997 |
+| `beihai` | 北海 | 1975—1997 | 1975—1995 | 1996 | 1997 |
+
+固定规范如下：
+
+1. 输入为过去24小时的U10、V10、MSL 40×40网格及历史增水；ERA5变量顺序固定为U10、V10、MSL。
+2. UTide只用训练期观测标定；标准化参数只用训练集计算。
+3. 1996只用于模型选择和早停；1997只在方案锁定后运行一次独立测试。
+4. 递归滚动会回填模型自身预测增水，不会用未来真实增水；未来ERA5仍为再分析真值，所以属于历史回算，不是业务实时预报。
+5. 原始目录 `F:\ERA5-NEW` 和 `F:\GESLA` 只读。所有处理数组、模型和实验结果都写入本项目自己的 `outputs/`、`models/` 和仓库根目录 `reports/experiment_results/`。
+6. 真实NetCDF、GESLA、NPY、模型权重和大型预测数组不提交GitHub。
+
+## 实验室阶段A/B操作
+
+以下命令使用Windows PowerShell，不要写CMD的 `cd /d`。先更新本功能分支并进入项目：
+
+```powershell
+conda activate jjq
+Set-Location "H:\02_代码与模型\蒋佳倩_2026-2029_软件工程硕士\storm_surge"
+git status
+git fetch origin
+git checkout codex/china-multistation
+git pull --ff-only origin codex/china-multistation
+Set-Location "projects\xiamen_short_term\short_term_forecast"
+python -m compileall -q src
+python -m pytest tests -q
+```
+
+先处理连云港。命令会从集中配置读取用户给定的三个ERA5文件和GESLA文件，逐年读取ERA5并写入独立目录，不会修改原始数据：
+
+```powershell
+python -m src.xiamen_forecast.prepare_xiamen --station lianyungang
+python -m src.xiamen_forecast.audit_prepared_dataset --station lianyungang
+```
+
+第一条成功后预期生成：
+
+```text
+outputs/processed/lianyungang/tide_qc_report.json
+outputs/processed/lianyungang/preparation_report.json
+outputs/processed/lianyungang/tide/
+outputs/processed/lianyungang/aligned_dataset/atmosphere.npy
+outputs/processed/lianyungang/aligned_dataset/surge.npy
+outputs/processed/lianyungang/aligned_dataset/time.npy
+outputs/processed/lianyungang/aligned_dataset/dataset_metadata.json
+```
+
+第二条生成 `outputs/processed/lianyungang/prepared_dataset_audit.json`。只有报告的 `status` 为 `passed`，且ERA5三个变量坐标一致、MSL单位为Pa、`5|0`等无效GESLA记录已剔除、三个数据集均有有效样本、1996和1997均有72小时共同起报样本时，才进入训练。严重问题会让命令以错误退出，不会静默插值或伪造结果。
+
+北海命令已经准备好，但默认等待连云港审计确认后再执行：
+
+```powershell
+python -m src.xiamen_forecast.prepare_xiamen --station beihai
+python -m src.xiamen_forecast.audit_prepared_dataset --station beihai
+```
+
+北海对应输出位于 `outputs/processed/beihai/`，不会读取或覆盖连云港、厦门数组。若需要查看失败报告而不让程序抛出异常，可临时加 `--report-only`；这不代表数据合格，也不能据此开始训练。
+
+## 审计确认后的阶段C命令
+
+本节仅供后续使用，本轮不要运行。以连云港为例，先在1996验证集完成基线和核心模型选择：
+
+```powershell
+python -m src.xiamen_forecast.evaluate_baselines --station lianyungang --validation-only
+python -m src.xiamen_forecast.train_xiamen --station lianyungang --model-type surge_mlp --validation-only --device cuda
+python -m src.xiamen_forecast.train_xiamen --station lianyungang --model-type era5_cnn --validation-only --device cuda
+python -m src.xiamen_forecast.train_model_suite --station lianyungang --models cnn cnn_gru --device cuda
+python -m src.xiamen_forecast.compare_models --station lianyungang --split validation
+```
+
+确认CNN-GRU为主模型后再做rollout-6与1996年的1、3、6、12、24、48、72小时诊断：
+
+```powershell
+python -m src.xiamen_forecast.train_rollout_temporal --station lianyungang --model-type cnn_gru --rollout-steps 6 --device cuda
+python -m src.xiamen_forecast.rolling_diagnostics --station lianyungang --evaluation-year 1996 --split validation --models surge_mlp era5_cnn cnn cnn_gru --device cuda --rollout-checkpoint "models\lianyungang\formal_seed42\cnn_gru_rollout6\best_model.pth"
+```
+
+模型方案锁定后，下面这一条才读取1997观测并评估已锁定权重；它不会重新训练：
+
+```powershell
+python -m src.xiamen_forecast.run_final_test --station lianyungang --device cuda --language en
+```
+
+精简结果最终位于仓库根目录 `reports/experiment_results/lianyungang_short_term_1997_seed42/`。北海只需把所有命令中的 `lianyungang` 换成 `beihai`。
 
 ## 当前正式数据
 
@@ -40,24 +132,24 @@ python -m src.xiamen_forecast.audit_prepared_dataset
 3. 生成 Zero、Persistence 和 Ridge 基线：
 
 ```powershell
-python -m src.xiamen_forecast.evaluate_baselines
+python -m src.xiamen_forecast.evaluate_baselines --validation-only
 ```
 
 4. 训练消融模型。`surge_mlp` 只使用历史增水，`era5_cnn` 只使用 ERA5；它们用于判断两类信息的独立贡献，不属于五模型主体对比：
 
 ```powershell
-python -m src.xiamen_forecast.train_xiamen --model-type surge_mlp
-python -m src.xiamen_forecast.train_xiamen --model-type era5_cnn
+python -m src.xiamen_forecast.train_xiamen --model-type surge_mlp --validation-only
+python -m src.xiamen_forecast.train_xiamen --model-type era5_cnn --validation-only
 ```
 
 5. 在完全相同的数据划分、24 小时输入和评价规则下训练五个正式对比模型：
 
 ```powershell
-python -m src.xiamen_forecast.train_xiamen --model-type cnn --batch-size 256 --epochs 50 --patience 8
-python -m src.xiamen_forecast.train_xiamen --model-type cnn_lstm --batch-size 32 --epochs 50 --patience 8
-python -m src.xiamen_forecast.train_xiamen --model-type cnn_gru --batch-size 32 --epochs 50 --patience 8
-python -m src.xiamen_forecast.train_xiamen --model-type tcn --batch-size 32 --epochs 50 --patience 8
-python -m src.xiamen_forecast.train_xiamen --model-type transformer --batch-size 32 --epochs 50 --patience 8
+python -m src.xiamen_forecast.train_xiamen --model-type cnn --batch-size 256 --epochs 50 --patience 8 --validation-only
+python -m src.xiamen_forecast.train_xiamen --model-type cnn_lstm --batch-size 32 --epochs 50 --patience 8 --validation-only
+python -m src.xiamen_forecast.train_xiamen --model-type cnn_gru --batch-size 32 --epochs 50 --patience 8 --validation-only
+python -m src.xiamen_forecast.train_xiamen --model-type tcn --batch-size 32 --epochs 50 --patience 8 --validation-only
+python -m src.xiamen_forecast.train_xiamen --model-type transformer --batch-size 32 --epochs 50 --patience 8 --validation-only
 ```
 
 也可以一次按顺序运行五个模型；已经生成 `metrics.json` 的完整实验会自动跳过，实验中断后可重复执行同一命令继续后续任务：
@@ -68,7 +160,7 @@ python -m src.xiamen_forecast.train_model_suite --device cuda
 
 `cnn` 是“空间 CNN + 历史增水 MLP”的正式基础模型。旧命令中的 `dual` 仍可读取，但只是 `cnn` 的兼容别名，不应重复训练。所有模型默认在 CUDA 上启用 AMP 混合精度；若显存充足，可逐步把时序模型 batch size 从 32 调到 64 或 128。Windows 的 `--num-workers` 默认是 0，确认运行稳定后可尝试 `--num-workers 2`。
 
-模型使用 early stopping，并输出 1996 验证和 1997 测试结果。指标包括 RMSE、MAE、Bias、Pearson r、R2、RRMSE、Top 10%/5%强增水、快速上涨和独立峰值误差。
+模型使用 early stopping。模型选择阶段加 `--validation-only`，只输出1996验证结果，不加载1997；锁定方案后由 `evaluate_checkpoints` 或 `run_final_test` 评估1997。指标包括RMSE、MAE、Bias、Pearson r、R2、RRMSE、Top 10%/5%强增水、快速上涨和独立峰值误差。
 
 五个模型跑完后，先汇总 1996 验证集的一步预测结果：
 
