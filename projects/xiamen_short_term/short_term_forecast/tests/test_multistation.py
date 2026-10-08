@@ -16,6 +16,10 @@ from src.xiamen_forecast.dataset_builder import (
 from src.xiamen_forecast.era5_loader import inspect_era5_files
 from src.xiamen_forecast import prepare_xiamen
 from src.xiamen_forecast.run_final_test import build_commands
+from src.xiamen_forecast.run_validation_workflow import (
+    build_validation_steps,
+    require_passed_audit,
+)
 from src.xiamen_forecast.station_config import (
     STATIONS,
     apply_station_defaults,
@@ -102,6 +106,41 @@ def test_output_location_rejects_cross_station_directory(tmp_path: Path) -> None
     assert accepted == (lianyungang / "formal_seed42").resolve()
     with pytest.raises(ValueError, match="must remain inside"):
         validate_output_location(beihai / "formal_seed42", lianyungang, "Model output")
+
+
+def test_validation_workflow_is_station_scoped_and_never_uses_test_year() -> None:
+    steps = build_validation_steps("lianyungang")
+    assert len(steps) == 10
+    commands = [list(step.command) for step in steps]
+    assert all("--station" in command for command in commands)
+    assert all(
+        command[command.index("--station") + 1] == "lianyungang"
+        for command in commands
+    )
+    training = [
+        command
+        for command in commands
+        if "src.xiamen_forecast.train_xiamen" in command
+    ]
+    assert len(training) == 4
+    assert all("--validation-only" in command for command in training)
+    flattened = " ".join(token for command in commands for token in command).lower()
+    assert "1997" not in flattened
+    assert " test " not in f" {flattened} "
+    assert steps[-1].name == "Export Git-safe validation result package"
+
+
+def test_validation_workflow_requires_passed_audit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    station = get_station_config("lianyungang")
+    monkeypatch.setattr(type(station), "processed_root", property(lambda self: tmp_path))
+    audit = tmp_path / "prepared_dataset_audit.json"
+    audit.write_text(json.dumps({"status": "failed", "errors": ["bad data"]}))
+    with pytest.raises(ValueError, match="bad data"):
+        require_passed_audit("lianyungang")
+    audit.write_text(json.dumps({"status": "passed"}))
+    assert require_passed_audit("lianyungang")["status"] == "passed"
 
 
 def test_validation_only_dataset_rejects_future_year_and_uses_training_scalers() -> None:
