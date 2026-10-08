@@ -68,3 +68,6 @@ tools/realtime_crawlers/output/
 # Compact, curated experiment summaries are safe to version.
 !reports/experiment_results/
 !reports/experiment_results/**
+
+# Keep platform metadata ignored inside explicitly versioned result packages.
+**/.DS_Store
