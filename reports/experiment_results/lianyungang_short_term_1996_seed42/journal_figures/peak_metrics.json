@@ -1,0 +1,32 @@
+[
+  {
+    "percentile": 90.0,
+    "threshold_cm": 32.4540121,
+    "n_peak": 879,
+    "peak_rmse": 6.419307163317545,
+    "peak_mae": 4.744803145620023,
+    "peak_bias": -3.053903673492606,
+    "underestimation_ratio": 0.7360637087599545,
+    "peak_correlation": 0.8424912230911652
+  },
+  {
+    "percentile": 95.0,
+    "threshold_cm": 39.235386950000006,
+    "n_peak": 440,
+    "peak_rmse": 7.257498681752055,
+    "peak_mae": 5.431740188636365,
+    "peak_bias": -3.7930134249999994,
+    "underestimation_ratio": 0.7636363636363637,
+    "peak_correlation": 0.8277447253375174
+  },
+  {
+    "percentile": 99.0,
+    "threshold_cm": 53.1985955,
+    "n_peak": 88,
+    "peak_rmse": 8.933075312433543,
+    "peak_mae": 6.747096954545455,
+    "peak_bias": -4.70748575,
+    "underestimation_ratio": 0.7613636363636364,
+    "peak_correlation": 0.811889013873869
+  }
+]

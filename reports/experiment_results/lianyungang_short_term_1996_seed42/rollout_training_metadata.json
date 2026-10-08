@@ -1,0 +1,24 @@
+{
+  "station": "lianyungang",
+  "station_name": "Lianyungang",
+  "training_years": [
+    1975,
+    1995
+  ],
+  "validation_year": 1996,
+  "test_year_loaded": false,
+  "base_model_type": "cnn_gru",
+  "base_checkpoint": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\cnn_gru\\best_model.pth",
+  "device": "cuda",
+  "amp": true,
+  "rollout_steps": 6,
+  "teacher_forcing_epochs": 5,
+  "train_samples": 183136,
+  "validation_samples": 8779,
+  "base_validation_scaled_mse": 0.1536022230612755,
+  "base_validation_rmse_cm": 10.513932687329838,
+  "best_validation_scaled_mse": 0.1365857234224465,
+  "best_validation_rmse_cm": 9.914460691650516,
+  "best_epoch": 14,
+  "fine_tuned_improved_over_base": true
+}
