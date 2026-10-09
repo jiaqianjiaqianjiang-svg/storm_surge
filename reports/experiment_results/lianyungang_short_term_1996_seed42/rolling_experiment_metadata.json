@@ -30,7 +30,10 @@
     "surge_mlp": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\surge_mlp\\best_model.pth",
     "era5_cnn": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\era5_cnn\\best_model.pth",
     "cnn": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\cnn\\best_model.pth",
+    "cnn_lstm": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\cnn_lstm\\best_model.pth",
     "cnn_gru": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\cnn_gru\\best_model.pth",
+    "tcn": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\tcn\\best_model.pth",
+    "transformer": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\transformer\\best_model.pth",
     "cnn_gru_rollout6": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\cnn_gru_rollout6\\best_model.pth"
   },
   "ridge_pipeline": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\baselines\\ridge_pipeline.joblib",
