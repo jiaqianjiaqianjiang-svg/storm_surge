@@ -1,0 +1,296 @@
+{
+  "validation": {
+    "overall": {
+      "n": 8784,
+      "pearson_r": 0.9816824989213463,
+      "r2": 0.9626923759192891,
+      "rmse_cm": 5.475610087535846,
+      "mae_cm": 4.073450286740242,
+      "bias_cm": -0.7689780658467075,
+      "rrmse_percent": 24.515194707580672
+    },
+    "skill_score_vs_ridge": 0.15904434246885701,
+    "ridge_reference_n": 8784,
+    "top_absolute_10_percent": {
+      "n": 879,
+      "pearson_r": 0.9922066850662461,
+      "r2": 0.9839453391668151,
+      "rmse_cm": 6.852778239107277,
+      "mae_cm": 5.10696047605508,
+      "bias_cm": -0.9436871648784112,
+      "rrmse_percent": 11.463745511650584,
+      "threshold_cm": 44.792460203170776
+    },
+    "top_absolute_5_percent": {
+      "n": 440,
+      "pearson_r": 0.9906991629232317,
+      "r2": 0.9812796050935931,
+      "rmse_cm": 7.28768335316939,
+      "mae_cm": 5.4768929427320305,
+      "bias_cm": -0.5762190439484336,
+      "rrmse_percent": 10.337438151053197,
+      "threshold_cm": 54.4010889530182
+    },
+    "rapid_rise_top_10_percent": {
+      "n": 420,
+      "pearson_r": 0.9764993160771511,
+      "r2": 0.8641548872638845,
+      "rmse_cm": 10.402046075224888,
+      "mae_cm": 8.652301685319149,
+      "bias_cm": -8.413978939310514,
+      "rrmse_percent": 46.98580846235224,
+      "threshold_cm": 17.33093112707138,
+      "threshold_definition": "90th percentile of positive one-hour observed rises"
+    },
+    "peak_events": {
+      "event_count": 10,
+      "minimum_separation_hours": 24,
+      "local_peak_search_window_hours": 12,
+      "mean_absolute_peak_error_cm": 7.511125206947327,
+      "mean_absolute_timing_error_hours": 0.4,
+      "maximum_observed_m": -1.2533708810806274,
+      "prediction_at_maximum_observed_m": -1.0751953125,
+      "maximum_peak_error_cm": 17.817556858062744,
+      "underestimated_maximum_absolute_peak": true,
+      "events": [
+        {
+          "observed_peak_time": "1996-01-08T09:00:00",
+          "observed_peak_m": -1.2533708810806274,
+          "prediction_at_observed_peak_m": -1.0751953125,
+          "peak_error_cm": 17.817556858062744,
+          "predicted_local_peak_time": "1996-01-08T10:00:00",
+          "timing_error_hours": 1.0,
+          "underestimated_absolute_peak": true
+        },
+        {
+          "observed_peak_time": "1996-03-18T07:00:00",
+          "observed_peak_m": -1.134611964225769,
+          "prediction_at_observed_peak_m": -1.07421875,
+          "peak_error_cm": 6.039321422576904,
+          "predicted_local_peak_time": "1996-03-18T07:00:00",
+          "timing_error_hours": 0.0,
+          "underestimated_absolute_peak": true
+        },
+        {
+          "observed_peak_time": "1996-12-05T21:00:00",
+          "observed_peak_m": -1.1293787956237793,
+          "prediction_at_observed_peak_m": -1.0361328125,
+          "peak_error_cm": 9.32459831237793,
+          "predicted_local_peak_time": "1996-12-05T20:00:00",
+          "timing_error_hours": -1.0,
+          "underestimated_absolute_peak": true
+        },
+        {
+          "observed_peak_time": "1996-02-01T06:00:00",
+          "observed_peak_m": -1.1069378852844238,
+          "prediction_at_observed_peak_m": -1.0771484375,
+          "peak_error_cm": 2.978944778442383,
+          "predicted_local_peak_time": "1996-02-01T06:00:00",
+          "timing_error_hours": 0.0,
+          "underestimated_absolute_peak": true
+        },
+        {
+          "observed_peak_time": "1996-11-30T10:00:00",
+          "observed_peak_m": -1.0955182313919067,
+          "prediction_at_observed_peak_m": -1.0595703125,
+          "peak_error_cm": 3.594791889190674,
+          "predicted_local_peak_time": "1996-11-30T10:00:00",
+          "timing_error_hours": 0.0,
+          "underestimated_absolute_peak": true
+        },
+        {
+          "observed_peak_time": "1996-02-21T09:00:00",
+          "observed_peak_m": -1.0946831703186035,
+          "prediction_at_observed_peak_m": -1.0595703125,
+          "peak_error_cm": 3.5112857818603516,
+          "predicted_local_peak_time": "1996-02-21T09:00:00",
+          "timing_error_hours": 0.0,
+          "underestimated_absolute_peak": true
+        },
+        {
+          "observed_peak_time": "1996-12-23T06:00:00",
+          "observed_peak_m": -1.0613970756530762,
+          "prediction_at_observed_peak_m": -0.9833984375,
+          "peak_error_cm": 7.799863815307617,
+          "predicted_local_peak_time": "1996-12-23T07:00:00",
+          "timing_error_hours": 1.0,
+          "underestimated_absolute_peak": true
+        },
+        {
+          "observed_peak_time": "1996-02-02T07:00:00",
+          "observed_peak_m": -1.0143885612487793,
+          "prediction_at_observed_peak_m": -1.154296875,
+          "peak_error_cm": -13.99083137512207,
+          "predicted_local_peak_time": "1996-02-02T07:00:00",
+          "timing_error_hours": 0.0,
+          "underestimated_absolute_peak": false
+        },
+        {
+          "observed_peak_time": "1996-03-08T09:00:00",
+          "observed_peak_m": -1.0091335773468018,
+          "prediction_at_observed_peak_m": -0.97509765625,
+          "peak_error_cm": 3.403592109680176,
+          "predicted_local_peak_time": "1996-03-08T09:00:00",
+          "timing_error_hours": 0.0,
+          "underestimated_absolute_peak": true
+        },
+        {
+          "observed_peak_time": "1996-10-30T04:00:00",
+          "observed_peak_m": 0.9908210635185242,
+          "prediction_at_observed_peak_m": 0.92431640625,
+          "peak_error_cm": -6.650465726852417,
+          "predicted_local_peak_time": "1996-10-30T03:00:00",
+          "timing_error_hours": -1.0,
+          "underestimated_absolute_peak": true
+        }
+      ]
+    }
+  },
+  "test": {
+    "overall": {
+      "n": 8752,
+      "pearson_r": 0.9771783423950389,
+      "r2": 0.953375172260126,
+      "rmse_cm": 5.744248518692976,
+      "mae_cm": 4.166976532963191,
+      "bias_cm": -0.9238323742375381,
+      "rrmse_percent": 27.434393972626044
+    },
+    "skill_score_vs_ridge": 0.1242145675898042,
+    "ridge_reference_n": 8752,
+    "top_absolute_10_percent": {
+      "n": 876,
+      "pearson_r": 0.9918492760058777,
+      "r2": 0.9829636730474567,
+      "rmse_cm": 7.513634476445401,
+      "mae_cm": 5.493229311214734,
+      "bias_cm": -1.1904719247393412,
+      "rrmse_percent": 13.390149915314284,
+      "threshold_cm": 42.645675539970405
+    },
+    "top_absolute_5_percent": {
+      "n": 438,
+      "pearson_r": 0.9920006243685963,
+      "r2": 0.9831488959879869,
+      "rmse_cm": 8.59598003463685,
+      "mae_cm": 6.388454880888603,
+      "bias_cm": -1.121737954279059,
+      "rrmse_percent": 13.163342045280352,
+      "threshold_cm": 52.07418084144584
+    },
+    "rapid_rise_top_10_percent": {
+      "n": 416,
+      "pearson_r": 0.9656217910743857,
+      "r2": 0.8188314262488395,
+      "rmse_cm": 12.271372187041875,
+      "mae_cm": 9.862859395644382,
+      "bias_cm": -9.713269525071574,
+      "rrmse_percent": 53.71942525989144,
+      "threshold_cm": 16.52433544397354,
+      "threshold_definition": "90th percentile of positive one-hour observed rises"
+    },
+    "peak_events": {
+      "event_count": 10,
+      "minimum_separation_hours": 24,
+      "local_peak_search_window_hours": 12,
+      "mean_absolute_peak_error_cm": 12.57688283920288,
+      "mean_absolute_timing_error_hours": 3.1,
+      "maximum_observed_m": 1.4432978630065918,
+      "prediction_at_maximum_observed_m": 1.2501637935638428,
+      "maximum_peak_error_cm": -19.313406944274902,
+      "underestimated_maximum_absolute_peak": true,
+      "events": [
+        {
+          "observed_peak_time": "1997-08-19T08:00:00",
+          "observed_peak_m": 1.4432978630065918,
+          "prediction_at_observed_peak_m": 1.2501637935638428,
+          "peak_error_cm": -19.313406944274902,
+          "predicted_local_peak_time": "1997-08-19T09:00:00",
+          "timing_error_hours": 1.0,
+          "underestimated_absolute_peak": true
+        },
+        {
+          "observed_peak_time": "1997-02-11T10:00:00",
+          "observed_peak_m": -1.28371262550354,
+          "prediction_at_observed_peak_m": -1.0961201190948486,
+          "peak_error_cm": 18.75925064086914,
+          "predicted_local_peak_time": "1997-02-11T11:00:00",
+          "timing_error_hours": 1.0,
+          "underestimated_absolute_peak": true
+        },
+        {
+          "observed_peak_time": "1997-01-02T02:00:00",
+          "observed_peak_m": -0.9819148778915405,
+          "prediction_at_observed_peak_m": -0.9378848075866699,
+          "peak_error_cm": 4.4030070304870605,
+          "predicted_local_peak_time": "1997-01-02T03:00:00",
+          "timing_error_hours": 1.0,
+          "underestimated_absolute_peak": true
+        },
+        {
+          "observed_peak_time": "1997-11-18T10:00:00",
+          "observed_peak_m": -0.9783868193626404,
+          "prediction_at_observed_peak_m": -0.8226140737533569,
+          "peak_error_cm": 15.577274560928345,
+          "predicted_local_peak_time": "1997-11-18T11:00:00",
+          "timing_error_hours": 1.0,
+          "underestimated_absolute_peak": true
+        },
+        {
+          "observed_peak_time": "1997-11-17T09:00:00",
+          "observed_peak_m": -0.882542073726654,
+          "prediction_at_observed_peak_m": -0.7393047213554382,
+          "peak_error_cm": 14.323735237121582,
+          "predicted_local_peak_time": "1997-11-17T10:00:00",
+          "timing_error_hours": 1.0,
+          "underestimated_absolute_peak": true
+        },
+        {
+          "observed_peak_time": "1997-09-14T20:00:00",
+          "observed_peak_m": 0.8707207441329956,
+          "prediction_at_observed_peak_m": 0.7560713887214661,
+          "peak_error_cm": -11.464935541152954,
+          "predicted_local_peak_time": "1997-09-14T19:00:00",
+          "timing_error_hours": -1.0,
+          "underestimated_absolute_peak": true
+        },
+        {
+          "observed_peak_time": "1997-04-09T21:00:00",
+          "observed_peak_m": -0.8227328658103943,
+          "prediction_at_observed_peak_m": -0.759739100933075,
+          "peak_error_cm": 6.299376487731934,
+          "predicted_local_peak_time": "1997-04-09T09:00:00",
+          "timing_error_hours": -12.0,
+          "underestimated_absolute_peak": true
+        },
+        {
+          "observed_peak_time": "1997-12-10T13:00:00",
+          "observed_peak_m": -0.7999319434165955,
+          "prediction_at_observed_peak_m": -0.7497839331626892,
+          "peak_error_cm": 5.014801025390625,
+          "predicted_local_peak_time": "1997-12-10T14:00:00",
+          "timing_error_hours": 1.0,
+          "underestimated_absolute_peak": true
+        },
+        {
+          "observed_peak_time": "1997-09-13T04:00:00",
+          "observed_peak_m": 0.7904378175735474,
+          "prediction_at_observed_peak_m": 0.6282256245613098,
+          "peak_error_cm": -16.221219301223755,
+          "predicted_local_peak_time": "1997-09-13T05:00:00",
+          "timing_error_hours": 1.0,
+          "underestimated_absolute_peak": true
+        },
+        {
+          "observed_peak_time": "1997-08-21T12:00:00",
+          "observed_peak_m": 0.7889105081558228,
+          "prediction_at_observed_peak_m": 0.6449922919273376,
+          "peak_error_cm": -14.39182162284851,
+          "predicted_local_peak_time": "1997-08-21T01:00:00",
+          "timing_error_hours": -11.0,
+          "underestimated_absolute_peak": true
+        }
+      ]
+    }
+  }
+}
