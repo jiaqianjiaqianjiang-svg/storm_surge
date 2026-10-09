@@ -38,7 +38,7 @@ def parse_args() -> argparse.Namespace:
         "--models",
         nargs="+",
         choices=EVALUATION_MODELS,
-        default=["surge_mlp", "era5_cnn", "cnn", "cnn_gru"],
+        default=list(EVALUATION_MODELS),
     )
     parser.add_argument("--year", type=int)
     parser.add_argument("--seed", type=int, default=42)

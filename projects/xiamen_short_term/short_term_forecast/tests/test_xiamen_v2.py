@@ -149,6 +149,9 @@ def test_final_test_runner_uses_test_split_and_1997(tmp_path: Path) -> None:
     assert all("test" in command for command in commands[1:])
     assert "1997" in commands[1]
     assert all("1997" in command for command in commands[3:])
+    for model in ("cnn_lstm", "cnn_gru", "tcn", "transformer"):
+        assert model in commands[1]
+        assert model in commands[3]
 
 
 def test_rollout_origins_respect_year_and_complete_windows() -> None:

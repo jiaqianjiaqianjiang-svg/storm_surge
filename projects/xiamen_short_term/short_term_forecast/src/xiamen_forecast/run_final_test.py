@@ -11,6 +11,15 @@ from .station_config import STATIONS, get_station_config
 
 
 MODULE_ROOT = Path(__file__).resolve().parents[2]
+FORMAL_MODELS = (
+    "surge_mlp",
+    "era5_cnn",
+    "cnn",
+    "cnn_lstm",
+    "cnn_gru",
+    "tcn",
+    "transformer",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -50,6 +59,8 @@ def build_commands(
             station,
             "--split",
             "test",
+            "--models",
+            *FORMAL_MODELS,
             "--seed",
             str(seed),
             "--year",
@@ -75,10 +86,7 @@ def build_commands(
             "--station",
             station,
             "--models",
-            "surge_mlp",
-            "era5_cnn",
-            "cnn",
-            "cnn_gru",
+            *FORMAL_MODELS,
             "--evaluation-year",
             common_year,
             "--split",

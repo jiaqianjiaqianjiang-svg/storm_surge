@@ -110,7 +110,7 @@ def test_output_location_rejects_cross_station_directory(tmp_path: Path) -> None
 
 def test_validation_workflow_is_station_scoped_and_never_uses_test_year() -> None:
     steps = build_validation_steps("lianyungang")
-    assert len(steps) == 10
+    assert len(steps) == 13
     commands = [list(step.command) for step in steps]
     assert all("--station" in command for command in commands)
     assert all(
@@ -122,8 +122,20 @@ def test_validation_workflow_is_station_scoped_and_never_uses_test_year() -> Non
         for command in commands
         if "src.xiamen_forecast.train_xiamen" in command
     ]
-    assert len(training) == 4
+    assert len(training) == 7
     assert all("--validation-only" in command for command in training)
+    trained_models = {
+        command[command.index("--model-type") + 1] for command in training
+    }
+    assert trained_models == {
+        "surge_mlp",
+        "era5_cnn",
+        "cnn",
+        "cnn_lstm",
+        "cnn_gru",
+        "tcn",
+        "transformer",
+    }
     flattened = " ".join(token for command in commands for token in command).lower()
     assert "1997" not in flattened
     assert " test " not in f" {flattened} "
@@ -398,4 +410,12 @@ def test_final_test_commands_propagate_station_to_every_entrypoint(
     assert all("lianyungang" in command for command in commands)
     rolling = commands[3]
     assert "--models" in rolling
-    assert "cnn_gru" in rolling
+    assert {
+        "surge_mlp",
+        "era5_cnn",
+        "cnn",
+        "cnn_lstm",
+        "cnn_gru",
+        "tcn",
+        "transformer",
+    }.issubset(rolling)

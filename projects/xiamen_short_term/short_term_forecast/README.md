@@ -69,13 +69,13 @@ python -m src.xiamen_forecast.audit_prepared_dataset --station beihai
 
 ## 审计确认后的阶段C命令
 
-审计通过后，推荐用一条命令完成连云港1996验证流程。它会依次执行基线、Surge-MLP、ERA5-only CNN、Fusion CNN、CNN-GRU、rollout-6、72小时滚动诊断、绘图和精简结果导出：
+审计通过后，推荐用一条命令完成连云港1996验证流程。它会依次执行基线、Surge-MLP、ERA5-only CNN、Fusion CNN、CNN-LSTM、CNN-GRU、TCN、Transformer、rollout-6、72小时滚动诊断、绘图和精简结果导出，与厦门正式模型体系保持一致：
 
 ```powershell
 python -m src.xiamen_forecast.run_validation_workflow --station lianyungang --device cuda
 ```
 
-整个过程可能持续数小时，主要耗时在深度模型训练。命令可以中断后重新执行；再次运行时会根据结果标记跳过已完成步骤。加 `--force` 才会强制重跑。该入口只使用训练期和1996验证集，不读取1997测试观测。
+整个过程可能持续数小时，主要耗时在深度模型训练。命令可以中断后重新执行；再次运行时会根据结果标记跳过已完成步骤，并在新增或更新模型后自动刷新下游比较、滚动、绘图和导出。加 `--force` 才会强制重跑。该入口只使用训练期和1996验证集，不读取1997测试观测。
 
 最终可上传的小型结果包位于仓库根目录：
 

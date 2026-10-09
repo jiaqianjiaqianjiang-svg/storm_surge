@@ -19,6 +19,7 @@ class WorkflowStep:
     command: tuple[str, ...]
     marker: Path | None = None
     required_json_keys: tuple[str, ...] = ()
+    dependencies: tuple[Path, ...] = ()
     always_run: bool = False
 
 
@@ -74,8 +75,13 @@ def step_is_complete(step: WorkflowStep) -> bool:
     if step.always_run or step.marker is None or not step.marker.is_file():
         return False
     if step.required_json_keys:
-        return _json_contains(step.marker, step.required_json_keys)
-    return True
+        if not _json_contains(step.marker, step.required_json_keys):
+            return False
+    marker_time = step.marker.stat().st_mtime
+    return all(
+        dependency.is_file() and dependency.stat().st_mtime <= marker_time
+        for dependency in step.dependencies
+    )
 
 
 def build_validation_steps(
@@ -130,7 +136,10 @@ def build_validation_steps(
         "surge_mlp": 256,
         "era5_cnn": 256,
         "cnn": 256,
+        "cnn_lstm": 32,
         "cnn_gru": 32,
+        "tcn": 32,
+        "transformer": 32,
     }
     for model, batch_size in model_batches.items():
         steps.append(
@@ -162,6 +171,11 @@ def build_validation_steps(
                 ("validation",),
             )
         )
+    model_metrics = tuple(formal / model / "metrics.json" for model in model_batches)
+    rollout_metadata = formal / "cnn_gru_rollout6" / "training_metadata.json"
+    comparison_metrics = comparison / "validation_model_metrics.csv"
+    rolling_metrics = rolling / "rolling_rmse_table.csv"
+    figure_manifest = figures / "figure_manifest.csv"
     steps.extend(
         [
             WorkflowStep(
@@ -177,8 +191,11 @@ def build_validation_steps(
                     "--seed",
                     str(seed),
                 ),
-                comparison / "validation_model_metrics.csv",
-                always_run=True,
+                comparison_metrics,
+                dependencies=(
+                    station.model_root / "baselines" / "baseline_metrics.json",
+                    *model_metrics,
+                ),
             ),
             WorkflowStep(
                 "Fine-tune CNN-GRU with rollout-6",
@@ -199,7 +216,8 @@ def build_validation_steps(
                     "--num-workers",
                     str(num_workers),
                 ),
-                formal / "cnn_gru_rollout6" / "training_metadata.json",
+                rollout_metadata,
+                dependencies=(formal / "cnn_gru" / "metrics.json",),
             ),
             WorkflowStep(
                 "Run 72-hour validation rolling diagnostics",
@@ -217,7 +235,10 @@ def build_validation_steps(
                     "surge_mlp",
                     "era5_cnn",
                     "cnn",
+                    "cnn_lstm",
                     "cnn_gru",
+                    "tcn",
+                    "transformer",
                     "--device",
                     device,
                     "--seed",
@@ -225,7 +246,8 @@ def build_validation_steps(
                     "--rollout-checkpoint",
                     str(formal / "cnn_gru_rollout6" / "best_model.pth"),
                 ),
-                rolling / "rolling_rmse_table.csv",
+                rolling_metrics,
+                dependencies=(*model_metrics, rollout_metadata),
             ),
             WorkflowStep(
                 "Create validation figures",
@@ -244,7 +266,8 @@ def build_validation_steps(
                     "--language",
                     language,
                 ),
-                figures / "figure_manifest.csv",
+                figure_manifest,
+                dependencies=(comparison_metrics, rolling_metrics, rollout_metadata),
             ),
             WorkflowStep(
                 "Export Git-safe validation result package",
@@ -262,6 +285,7 @@ def build_validation_steps(
                     str(seed),
                 ),
                 result_package / "RESULTS_SUMMARY.md",
+                dependencies=(comparison_metrics, rolling_metrics, figure_manifest),
             ),
         ]
     )
