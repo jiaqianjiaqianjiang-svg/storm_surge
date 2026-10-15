@@ -1,0 +1,57 @@
+{
+  "station": "beihai",
+  "station_name": "Beihai",
+  "experiment_name_zh": "已知未来大气强迫条件下的历史滚动回算",
+  "operational_forecast": false,
+  "evaluation_year": 1996,
+  "validation_year": 1996,
+  "split": "validation",
+  "loaded_time_min": "1975-01-01T00:00:00",
+  "loaded_time_max": "1996-12-31T23:00:00",
+  "latest_verification_time": "1996-12-31T23:00:00",
+  "future_era5": "known ERA5 reanalysis values at future valid times",
+  "future_observed_surge_used_as_model_input": false,
+  "input_steps": 24,
+  "leads_hours": [
+    1,
+    3,
+    6,
+    12,
+    24,
+    48,
+    72
+  ],
+  "common_origin_count": 8713,
+  "first_origin": "1996-01-01T00:00:00",
+  "last_origin": "1996-12-29T00:00:00",
+  "device": "cuda",
+  "torch_version": "2.11.0+cu128",
+  "checkpoints": {
+    "surge_mlp": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\beihai\\formal_seed42\\surge_mlp\\best_model.pth",
+    "era5_cnn": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\beihai\\formal_seed42\\era5_cnn\\best_model.pth",
+    "cnn": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\beihai\\formal_seed42\\cnn\\best_model.pth",
+    "cnn_lstm": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\beihai\\formal_seed42\\cnn_lstm\\best_model.pth",
+    "cnn_gru": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\beihai\\formal_seed42\\cnn_gru\\best_model.pth",
+    "tcn": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\beihai\\formal_seed42\\tcn\\best_model.pth",
+    "transformer": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\beihai\\formal_seed42\\transformer\\best_model.pth",
+    "cnn_gru_rollout6": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\beihai\\formal_seed42\\cnn_gru_rollout6\\best_model.pth"
+  },
+  "ridge_pipeline": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\beihai\\baselines\\ridge_pipeline.joblib",
+  "strong_events": [
+    {
+      "forecast_origin": "1996-09-06T11:00:00",
+      "maximum_absolute_observed_cm": 145.95474243164062,
+      "plot": "strong_event_1_19960906_1100.png"
+    },
+    {
+      "forecast_origin": "1996-08-19T06:00:00",
+      "maximum_absolute_observed_cm": 120.59334564208984,
+      "plot": "strong_event_2_19960819_0600.png"
+    },
+    {
+      "forecast_origin": "1996-08-22T06:00:00",
+      "maximum_absolute_observed_cm": 111.68653869628906,
+      "plot": "strong_event_3_19960822_0600.png"
+    }
+  ]
+}
