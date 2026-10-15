@@ -118,6 +118,22 @@ python -m src.xiamen_forecast.run_final_test --station lianyungang --device cuda
 
 精简结果最终位于仓库根目录 `reports/experiment_results/lianyungang_short_term_1997_seed42/`。北海只需把所有命令中的 `lianyungang` 换成 `beihai`。
 
+## 三站1997独立测试汇总
+
+厦门、连云港和北海的1997精简结果包全部上传后，在仓库根目录运行：
+
+```powershell
+python tools\compare_china_short_term_stations.py --language en
+```
+
+该命令只读取 `reports/experiment_results/*_short_term_1997_seed42/`，不会加载原始数据、重新训练或改写单站结果。统一输出位于：
+
+```text
+reports/experiment_results/china_three_station_comparison_1997_seed42/
+```
+
+其中包含一步模型指标、1—72小时滚动指标、P90/P95/P99峰值指标、核心摘要、三张跨站对比图和中文说明。默认推荐英文图片，避免不同电脑缺少中文字体；Windows已安装微软雅黑时可将参数改为 `--language zh`。
+
 ## 当前正式数据
 
 实验室电脑上的厦门数据与加勒比数据相互独立：
