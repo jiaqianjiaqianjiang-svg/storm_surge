@@ -18,6 +18,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from .forecast_model import model_from_checkpoint
+from .extreme_losses import (
+    LOSS_TYPES,
+    build_training_loss,
+    rollout_experiment_directory,
+)
 from .rolling_diagnostics import atmospheric_validity, resolve_checkpoint_path
 from .station_config import (
     STATIONS,
@@ -44,6 +49,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--base-checkpoint", type=Path)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--rollout-steps", type=int, default=6)
+    parser.add_argument("--loss-type", choices=LOSS_TYPES, default="mse")
+    parser.add_argument("--extreme-alpha", type=float, default=2.0)
+    parser.add_argument("--extreme-beta", type=float, default=1.0)
+    parser.add_argument(
+        "--huber-delta-cm",
+        type=float,
+        default=5.0,
+        help="Physical Huber transition scale in centimetres.",
+    )
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--patience", type=int, default=5)
     parser.add_argument("--teacher-forcing-epochs", type=int, default=5)
@@ -182,7 +196,6 @@ def scheduled_teacher_ratio(epoch: int, decay_epochs: int) -> float:
 def evaluate_recursive_mse(
     model: nn.Module,
     loader: DataLoader,
-    criterion: nn.Module,
     device: torch.device,
     use_amp: bool,
     non_blocking: bool,
@@ -199,10 +212,41 @@ def evaluate_recursive_mse(
                 predicted = temporal_rollout_forward(
                     model, weather, history, targets, 0.0
                 )
-                loss = criterion(predicted, targets)
+                loss = torch.mean((predicted - targets).square())
             total += float(loss) * len(targets)
             count += len(targets)
     return total / count
+
+
+def evaluate_recursive_losses(
+    model: nn.Module,
+    loader: DataLoader,
+    objective: nn.Module,
+    device: torch.device,
+    use_amp: bool,
+    non_blocking: bool,
+) -> tuple[float, float]:
+    """返回普通递归MSE和当前配置的训练目标。"""
+
+    model.eval()
+    mse_total = 0.0
+    objective_total = 0.0
+    count = 0
+    with torch.inference_mode():
+        for weather, history, targets in loader:
+            weather = weather.to(device, non_blocking=non_blocking)
+            history = history.to(device, non_blocking=non_blocking)
+            targets = targets.to(device, non_blocking=non_blocking)
+            with amp_context(use_amp):
+                predicted = temporal_rollout_forward(
+                    model, weather, history, targets, 0.0
+                )
+                mse = torch.mean((predicted - targets).square())
+                loss = objective(predicted, targets)
+            mse_total += float(mse) * len(targets)
+            objective_total += float(loss) * len(targets)
+            count += len(targets)
+    return mse_total / count, objective_total / count
 
 
 def main() -> None:
@@ -226,8 +270,12 @@ def main() -> None:
     base_path = args.base_checkpoint or resolve_checkpoint_path(
         checkpoint_root, args.model_type
     )
+    base_experiment = base_path.parent.name
     output = args.output_dir or (
-        checkpoint_root / f"{args.model_type}_rollout{args.rollout_steps}"
+        checkpoint_root
+        / rollout_experiment_directory(
+            base_experiment, args.loss_type, args.rollout_steps
+        )
     )
     validate_output_location(output, station.model_root, "Rollout model output")
     output.mkdir(parents=True, exist_ok=True)
@@ -325,9 +373,22 @@ def main() -> None:
         lr=args.learning_rate,
         weight_decay=1e-5,
     )
-    criterion = nn.MSELoss()
+    train_target_positions = np.unique(
+        train_origins[:, None] + np.arange(args.rollout_steps, dtype=np.int64)
+    )
+    training_targets_m = np.asarray(surge[train_target_positions], dtype=np.float64)
+    criterion, loss_config = build_training_loss(
+        args.loss_type,
+        training_targets_m,
+        surge_mean,
+        surge_scale,
+        alpha=args.extreme_alpha,
+        beta=args.extreme_beta,
+        huber_delta_cm=args.huber_delta_cm,
+    )
+    criterion.to(device)
     grad_scaler = make_grad_scaler(use_amp)
-    base_validation_mse = evaluate_recursive_mse(
+    base_validation_mse, base_validation_objective = evaluate_recursive_losses(
         model,
         validation_loader,
         criterion,
@@ -346,7 +407,9 @@ def main() -> None:
             "epoch": 0.0,
             "teacher_forcing_ratio": 0.0,
             "train_scaled_mse": float("nan"),
+            "train_objective": float("nan"),
             "validation_recursive_scaled_mse": base_validation_mse,
+            "validation_recursive_objective": base_validation_objective,
             "validation_recursive_rmse_cm": base_validation_rmse_cm,
         }
     ]
@@ -359,6 +422,7 @@ def main() -> None:
                 "model_state_dict": model.state_dict(),
                 "rollout_training": {
                     "base_model_type": args.model_type,
+                    "base_experiment": base_experiment,
                     "rollout_steps": args.rollout_steps,
                     "teacher_forcing_schedule": (
                         f"linear 1 to 0 over {args.teacher_forcing_epochs} epochs"
@@ -368,12 +432,14 @@ def main() -> None:
                         f"{args.validation_year} recursive rollout MSE"
                     ),
                     "base_validation_scaled_mse": base_validation_mse,
+                    "base_validation_objective": base_validation_objective,
                     "best_validation_scaled_mse": best,
                     "best_epoch": best_epoch,
                     "fine_tuned_improved_over_base": fine_tuned,
                     "train_samples": len(train_origins),
                     "validation_samples": len(validation_origins),
                     "seed": args.seed,
+                    "loss_config": loss_config,
                 },
             },
             best_path,
@@ -389,13 +455,15 @@ def main() -> None:
         f"base_recursive_validation_rmse_cm={base_validation_rmse_cm:.4f}",
         flush=True,
     )
+    print(f"loss_config={json.dumps(loss_config, ensure_ascii=False)}", flush=True)
     for epoch in range(1, args.epochs + 1):
         model.train()
         model.encoder.eval()
         teacher_ratio = scheduled_teacher_ratio(
             epoch, args.teacher_forcing_epochs
         )
-        train_total = 0.0
+        train_objective_total = 0.0
+        train_mse_total = 0.0
         train_count = 0
         for weather, history, targets in train_loader:
             weather = weather.to(device, non_blocking=pin_memory)
@@ -407,13 +475,15 @@ def main() -> None:
                     model, weather, history, targets, teacher_ratio
                 )
                 loss = criterion(predicted, targets)
+                batch_mse = torch.mean((predicted - targets).square())
             grad_scaler.scale(loss).backward()
             grad_scaler.step(optimizer)
             grad_scaler.update()
-            train_total += float(loss.detach()) * len(targets)
+            train_objective_total += float(loss.detach()) * len(targets)
+            train_mse_total += float(batch_mse.detach()) * len(targets)
             train_count += len(targets)
 
-        validation_mse = evaluate_recursive_mse(
+        validation_mse, validation_objective = evaluate_recursive_losses(
             model,
             validation_loader,
             criterion,
@@ -424,8 +494,10 @@ def main() -> None:
         row = {
             "epoch": float(epoch),
             "teacher_forcing_ratio": teacher_ratio,
-            "train_scaled_mse": train_total / train_count,
+            "train_scaled_mse": train_mse_total / train_count,
+            "train_objective": train_objective_total / train_count,
             "validation_recursive_scaled_mse": validation_mse,
+            "validation_recursive_objective": validation_objective,
             "validation_recursive_rmse_cm": (
                 np.sqrt(validation_mse) * surge_scale * 100
             ),
@@ -467,6 +539,7 @@ def main() -> None:
         "test_year_loaded": False,
         "base_model_type": args.model_type,
         "base_checkpoint": str(base_path),
+        "base_experiment": base_experiment,
         "device": str(device),
         "amp": use_amp,
         "rollout_steps": args.rollout_steps,
@@ -474,14 +547,22 @@ def main() -> None:
         "train_samples": len(train_origins),
         "validation_samples": len(validation_origins),
         "base_validation_scaled_mse": base_validation_mse,
+        "base_validation_objective": base_validation_objective,
         "base_validation_rmse_cm": base_validation_rmse_cm,
         "best_validation_scaled_mse": best,
         "best_validation_rmse_cm": float(np.sqrt(best) * surge_scale * 100),
         "best_epoch": best_epoch,
         "fine_tuned_improved_over_base": best_epoch > 0,
+        "selection_metric": (
+            f"minimum {args.validation_year} ordinary recursive scaled MSE"
+        ),
+        "loss_config": loss_config,
     }
     (output / "training_metadata.json").write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    (output / "extreme_loss_config.json").write_text(
+        json.dumps(loss_config, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     print(json.dumps(metadata, ensure_ascii=False, indent=2), flush=True)
     print(f"checkpoint: {best_path}", flush=True)

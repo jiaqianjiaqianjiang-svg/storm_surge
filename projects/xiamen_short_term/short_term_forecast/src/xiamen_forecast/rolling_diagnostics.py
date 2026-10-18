@@ -22,7 +22,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 try:
-    from .evaluate import calculate_metrics
+    from .evaluate import calculate_metrics, calculate_positive_extreme_metrics
     from .evaluate_baselines import summarise_atmosphere
     from .forecast_model import model_from_checkpoint
     from .station_config import (
@@ -33,7 +33,7 @@ try:
     )
     from .train_xiamen import load_prepared
 except ImportError:
-    from evaluate import calculate_metrics
+    from evaluate import calculate_metrics, calculate_positive_extreme_metrics
     from evaluate_baselines import summarise_atmosphere
     from forecast_model import model_from_checkpoint
     from station_config import STATIONS, apply_station_defaults, validate_dataset_identity, validate_output_location
@@ -106,6 +106,16 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Optional CNN-family checkpoint fine-tuned with recursive rollout loss.",
     )
+    parser.add_argument(
+        "--extra-checkpoint",
+        action="append",
+        default=[],
+        metavar="LABEL=PATH",
+        help=(
+            "Additional one-step or rollout checkpoint. Repeat this option to compare "
+            "new and old losses on exactly the same forecast origins."
+        ),
+    )
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     return parser.parse_args()
@@ -167,12 +177,30 @@ def resolve_checkpoint_path(checkpoint_root: Path, name: str) -> Path:
     return path
 
 
+def parse_extra_checkpoints(values: list[str]) -> dict[str, Path]:
+    """解析可重复的LABEL=PATH参数，并阻止静默覆盖。"""
+
+    parsed: dict[str, Path] = {}
+    for value in values:
+        if "=" not in value:
+            raise ValueError(f"Expected LABEL=PATH for --extra-checkpoint, got: {value}")
+        label, raw_path = value.split("=", 1)
+        label = label.strip()
+        if not label or not label.replace("-", "").replace("_", "").isalnum():
+            raise ValueError(f"Checkpoint label must be a simple name: {label!r}")
+        if label in parsed:
+            raise ValueError(f"Duplicate checkpoint label: {label}")
+        parsed[label] = Path(raw_path)
+    return parsed
+
+
 def load_models(
     checkpoint_root: Path,
     device: torch.device,
     rollout_checkpoint: Path | None = None,
     model_names: tuple[str, ...] = NEURAL_MODEL_NAMES,
     station_id: str | None = None,
+    extra_checkpoints: dict[str, Path] | None = None,
 ) -> tuple[dict[str, torch.nn.Module], dict[str, Any], dict[str, Path]]:
     models: dict[str, torch.nn.Module] = {}
     checkpoints: dict[str, Any] = {}
@@ -213,6 +241,23 @@ def load_models(
         models[rollout_name] = model
         checkpoints[rollout_name] = checkpoint
         paths[rollout_name] = rollout_checkpoint
+    for name, path in (extra_checkpoints or {}).items():
+        if name in models:
+            raise ValueError(f"Checkpoint label collides with an existing model: {name}")
+        if not path.is_file():
+            raise FileNotFoundError(f"Missing extra checkpoint: {path}")
+        checkpoint = torch.load(path, map_location=device, weights_only=False)
+        checkpoint_station = checkpoint.get("station_id")
+        if station_id is not None and checkpoint_station not in (None, station_id):
+            raise ValueError(
+                f"{name} checkpoint belongs to {checkpoint_station}, not "
+                f"{station_id}: {path}"
+            )
+        model = model_from_checkpoint(checkpoint).to(device)
+        model.eval()
+        models[name] = model
+        checkpoints[name] = checkpoint
+        paths[name] = path
     if not checkpoints:
         raise ValueError("At least one neural model checkpoint is required")
     reference_name = "cnn" if "cnn" in checkpoints else next(iter(checkpoints))
@@ -353,6 +398,30 @@ def build_metrics(
             model_mse = float(np.mean((predicted - observed) ** 2))
             top = calculate_metrics(observed[top_mask], predicted[top_mask])
             rapid = calculate_metrics(observed[rise_mask], predicted[rise_mask])
+            positive_extremes = calculate_positive_extreme_metrics(
+                observed, predicted
+            )
+            positive_columns: dict[str, Any] = {}
+            for percentile in (90, 95, 99):
+                details = positive_extremes[f"positive_extreme_p{percentile}"]
+                prefix = f"positive_p{percentile}"
+                positive_columns.update(
+                    {
+                        f"{prefix}_n": int(details.get("n", 0)),
+                        f"{prefix}_threshold_cm": details.get("threshold_cm", np.nan),
+                        f"{prefix}_rmse_cm": details.get("rmse_cm", np.nan),
+                        f"{prefix}_bias_cm": details.get("bias_cm", np.nan),
+                        f"{prefix}_underestimation_ratio": details.get(
+                            "underestimation_ratio", np.nan
+                        ),
+                        f"{prefix}_mean_underestimation_cm": details.get(
+                            "mean_underestimation_cm", np.nan
+                        ),
+                        f"{prefix}_mean_overestimation_cm": details.get(
+                            "mean_overestimation_cm", np.nan
+                        ),
+                    }
+                )
             rows.append(
                 {
                     "lead_hours": lead,
@@ -367,6 +436,7 @@ def build_metrics(
                     "rapid_rise_n": int(rapid["n"]),
                     "rapid_rise_threshold_cm_per_hour": rise_threshold * 100,
                     "rapid_rise_rmse_cm": rapid["rmse_cm"],
+                    **positive_columns,
                 }
             )
     return pd.DataFrame(rows)
@@ -534,7 +604,7 @@ def write_report(
 
 ## 输出说明
 
-- `rolling_metrics_long.csv`：RMSE、MAE、Bias、Pearson r、R²、同提前量岭回归技能评分、Top 5%强增水RMSE、快速上涨RMSE。
+    - `rolling_metrics_long.csv`：RMSE、MAE、Bias、Pearson r、R²、同提前量岭回归技能评分、绝对增水Top 5% RMSE、正向P90/P95/P99指标和快速上涨RMSE。
 - `rolling_predictions_selected_leads.csv`：所有共同起报时刻在7个指定提前量的观测与预测。
 - `rmse_vs_lead.png`：RMSE随提前量变化。
 - `strong_event_*.png`：典型强增水过程的72小时曲线。
@@ -602,12 +672,14 @@ def main() -> None:
         raise ValueError("No common evaluation-year origins satisfy the experiment rules")
     print(f"common forecast origins: {len(origins)}", flush=True)
 
+    extra_checkpoints = parse_extra_checkpoints(args.extra_checkpoint)
     models, checkpoints, checkpoint_paths = load_models(
         checkpoint_root,
         device,
         args.rollout_checkpoint,
         tuple(args.models),
         station.station_id,
+        extra_checkpoints,
     )
     ridge = joblib.load(ridge_path)
     summaries = summarise_atmosphere(atmosphere)
@@ -656,6 +728,7 @@ def main() -> None:
         "device": str(device),
         "torch_version": torch.__version__,
         "checkpoints": {name: str(path) for name, path in checkpoint_paths.items()},
+        "extra_checkpoint_labels": list(extra_checkpoints),
         "ridge_pipeline": str(ridge_path),
         "strong_events": events,
     }

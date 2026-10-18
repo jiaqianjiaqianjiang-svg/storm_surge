@@ -22,6 +22,11 @@ try:
         build_year_datasets,
     )
     from .evaluate import calculate_detailed_metrics
+    from .extreme_losses import (
+        LOSS_TYPES,
+        build_training_loss,
+        one_step_experiment_directory,
+    )
     from .forecast_model import MODEL_TYPES, create_model
     from .plotting import loss_curve, observed_vs_predicted, validation_scatter
     from .station_config import (
@@ -37,6 +42,7 @@ except ImportError:
         build_year_datasets,
     )
     from evaluate import calculate_detailed_metrics
+    from extreme_losses import LOSS_TYPES, build_training_loss, one_step_experiment_directory
     from forecast_model import MODEL_TYPES, create_model
     from plotting import loss_curve, observed_vs_predicted, validation_scatter
     from station_config import STATIONS, apply_station_defaults, validate_dataset_identity, validate_output_location
@@ -68,6 +74,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--patience", type=int, default=8)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--model-type", choices=sorted(MODEL_TYPES), default="cnn")
+    parser.add_argument(
+        "--loss-type",
+        choices=LOSS_TYPES,
+        default="mse",
+        help="Training objective; extreme objectives are restricted to CNN-GRU.",
+    )
+    parser.add_argument("--extreme-alpha", type=float, default=2.0)
+    parser.add_argument("--extreme-beta", type=float, default=1.0)
+    parser.add_argument(
+        "--huber-delta-cm",
+        type=float,
+        default=5.0,
+        help="Physical Huber transition scale in centimetres.",
+    )
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument(
@@ -129,6 +149,16 @@ def load_prepared(path: Path, start_year: int, end_year: int) -> tuple[np.ndarra
     return atmosphere[start:stop], surge[start:stop], times[start:stop]
 
 
+def raw_training_targets(dataset: object) -> np.ndarray:
+    """返回训练数据集实际包含的未标准化标签。"""
+
+    targets = np.asarray(dataset.targets, dtype=np.int64)
+    values = np.asarray(dataset.surge[targets], dtype=np.float64)
+    if not len(values) or not np.isfinite(values).all():
+        raise ValueError("Training labels for loss thresholds must all be finite")
+    return values
+
+
 def main() -> None:
     args = parse_args()
     station = apply_station_defaults(
@@ -142,11 +172,25 @@ def main() -> None:
             "test_year": "test_year",
         },
     )
+    if args.loss_type != "mse" and args.model_type != "cnn_gru":
+        raise ValueError("Extreme-loss experiments are fixed to --model-type cnn_gru")
+    if args.loss_type != "mse" and not args.validation_only:
+        raise ValueError(
+            "Extreme-loss method development must use --validation-only; "
+            "evaluate the locked checkpoint separately after approval"
+        )
     set_seed(args.seed)
     dataset_path = args.dataset_path or MODULE_ROOT / "outputs" / "processed" / args.station / "aligned_dataset"
     validate_dataset_identity(dataset_path, station.station_id)
+    experiment_directory = one_step_experiment_directory(
+        args.model_type, args.loss_type
+    )
     output = args.output_dir or (
-        MODULE_ROOT / "models" / args.station / f"formal_seed{args.seed}" / args.model_type
+        MODULE_ROOT
+        / "models"
+        / args.station
+        / f"formal_seed{args.seed}"
+        / experiment_directory
     )
     validate_output_location(output, station.model_root, "Model output")
     output.mkdir(parents=True, exist_ok=True)
@@ -217,26 +261,42 @@ def main() -> None:
         f"batch_size={args.batch_size} workers={args.num_workers}",
         flush=True,
     )
-    criterion = nn.MSELoss()
+    surge_mean_m = float(dataset_report["scalers"]["surge"]["mean"][0])
+    surge_scale_m = float(dataset_report["scalers"]["surge"]["scale"][0])
+    criterion, loss_config = build_training_loss(
+        args.loss_type,
+        raw_training_targets(train_set),
+        surge_mean_m,
+        surge_scale_m,
+        alpha=args.extreme_alpha,
+        beta=args.extreme_beta,
+        huber_delta_cm=args.huber_delta_cm,
+    )
+    criterion.to(device)
+    ordinary_mse = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr) if args.optimizer == "adam" else torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
     best_loss, stale, history = float("inf"), 0, []
     checkpoint_path = output / "best_model.pth"
     config = vars(args).copy(); config.update({"dataset_path": str(dataset_path), "output_dir": str(output), "device": str(device)})
-    surge_scale_m = float(dataset_report["scalers"]["surge"]["scale"][0])
+    print(f"loss_config={json.dumps(loss_config, ensure_ascii=False)}", flush=True)
     for epoch in range(1, args.epochs + 1):
-        model.train(); total, count = 0.0, 0
+        model.train(); objective_total, mse_total, count = 0.0, 0.0, 0
         for weather, surge_history, target in train_loader:
             weather = weather.to(device, non_blocking=pin_memory)
             surge_history = surge_history.to(device, non_blocking=pin_memory)
             target = target.to(device, non_blocking=pin_memory)
             optimizer.zero_grad(set_to_none=True)
             with amp_context(use_amp):
-                loss = criterion(model(weather, surge_history), target)
+                predictions = model(weather, surge_history)
+                loss = criterion(predictions, target)
+                batch_mse = ordinary_mse(predictions, target)
             grad_scaler.scale(loss).backward()
             grad_scaler.step(optimizer)
             grad_scaler.update()
-            total += loss.item() * len(target); count += len(target)
-        model.eval(); val_total, val_count = 0.0, 0
+            objective_total += loss.item() * len(target)
+            mse_total += batch_mse.item() * len(target)
+            count += len(target)
+        model.eval(); val_objective_total, val_mse_total, val_count = 0.0, 0.0, 0
         with torch.no_grad():
             for weather, surge_history, target in validation_loader:
                 target = target.to(device, non_blocking=pin_memory)
@@ -244,18 +304,29 @@ def main() -> None:
                 surge_history = surge_history.to(device, non_blocking=pin_memory)
                 with amp_context(use_amp):
                     predictions = model(weather, surge_history)
-                    validation_loss = criterion(predictions, target)
-                val_total += validation_loss.item() * len(target); val_count += len(target)
-        train_loss, val_loss = total / count, val_total / val_count
+                    validation_objective = criterion(predictions, target)
+                    validation_mse = ordinary_mse(predictions, target)
+                val_objective_total += validation_objective.item() * len(target)
+                val_mse_total += validation_mse.item() * len(target)
+                val_count += len(target)
+        train_objective = objective_total / count
+        train_loss = mse_total / count
+        validation_objective = val_objective_total / val_count
+        val_loss = val_mse_total / val_count
         history.append({
             "epoch": epoch,
             "train_loss": train_loss,
             "validation_loss": val_loss,
+            "train_objective": train_objective,
+            "validation_objective": validation_objective,
+            "objective_name": args.loss_type,
             "train_rmse_cm": float(np.sqrt(train_loss) * surge_scale_m * 100),
             "validation_rmse_cm": float(np.sqrt(val_loss) * surge_scale_m * 100),
         })
         print(
-            f"epoch={epoch} train_loss={train_loss:.6f} validation_loss={val_loss:.6f} "
+            f"epoch={epoch} train_mse={train_loss:.6f} validation_mse={val_loss:.6f} "
+            f"train_objective={train_objective:.6f} "
+            f"validation_objective={validation_objective:.6f} "
             f"validation_rmse_cm={history[-1]['validation_rmse_cm']:.4f}"
         )
         if val_loss < best_loss - 1e-8:
@@ -266,6 +337,7 @@ def main() -> None:
                 "station_name": station.name,
                 "training_time_range": dataset_report["train_time_range"],
                 "dataset_split": dataset_report,
+                "loss_config": loss_config,
                 "selection_metric": (
                     f"minimum {args.validation_year} validation scaled MSE "
                     "(equivalent to RMSE)"
@@ -331,6 +403,9 @@ def main() -> None:
     loss_curve(pd.DataFrame(history), output / "loss_curve.png")
     (output / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     (output / "training_config.json").write_text(json.dumps(config, indent=2, default=str), encoding="utf-8")
+    (output / "extreme_loss_config.json").write_text(
+        json.dumps(loss_config, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     (output / "dataset_report.json").write_text(
         json.dumps(dataset_report, indent=2), encoding="utf-8"
     )

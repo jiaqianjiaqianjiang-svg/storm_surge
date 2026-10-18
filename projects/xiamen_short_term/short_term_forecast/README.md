@@ -329,3 +329,97 @@ python -m pytest tests -q
 ```
 
 以下内容不会提交到 GitHub：真实 NetCDF、验潮数据、对齐数组、模型权重和新实验输出。
+
+## 连云港正向极值损失消融（仅1996方法开发）
+
+这一组实验保持CNN-GRU结构、24小时输入、40×40 ERA5、数据划分、优化器、学习率、随机种子和early stopping规则不变，只替换训练损失。`MSE`是原始基线；`WMSE`（weighted MSE，加权均方误差）把训练期P90至P99正向增水的权重从1线性提高到3；`AWMSE`（asymmetric weighted MSE，不对称加权均方误差）进一步惩罚正向强增水低估；`WHuber`（weighted Huber，加权Huber损失）是稳健性对照。
+
+权重阈值只使用1975—1995训练标签并以米计算。若原始P90不大于0，程序使用`q90=max(P90, 0 m)`，因此零及负增水始终保持单位权重。WHuber默认物理转折尺度为5 cm，运行时按训练集增水标准差换算到标准化尺度。所有阈值、单位、样本数和换算值均写入`extreme_loss_config.json`与checkpoint。
+
+新实验仍以1996普通验证MSE早停，同时记录加权训练和验证目标；加权损失不能直接解释为普通RMSE。1997不参与本轮训练、早停或超参数选择。
+
+### 1. 实验室更新与检查
+
+```powershell
+conda activate jjq
+Set-Location "H:\02_代码与模型\蒋佳倩_2026-2029_软件工程硕士\storm_surge"
+git checkout codex/china-multistation
+git pull origin codex/china-multistation
+Set-Location "projects\xiamen_short_term\short_term_forecast"
+python -m compileall -q src
+python -m pytest tests -q
+```
+
+### 2. 一步预测损失消融
+
+现有`models\lianyungang\formal_seed42\cnn_gru\`是MSE基线，不应覆盖。依次运行三个新实验：
+
+```powershell
+python -m src.xiamen_forecast.train_xiamen --station lianyungang --model-type cnn_gru --loss-type wmse --extreme-alpha 2 --batch-size 32 --epochs 50 --patience 8 --lr 0.001 --optimizer adam --seed 42 --device cuda --validation-only
+
+python -m src.xiamen_forecast.train_xiamen --station lianyungang --model-type cnn_gru --loss-type awmse --extreme-alpha 2 --extreme-beta 1 --batch-size 32 --epochs 50 --patience 8 --lr 0.001 --optimizer adam --seed 42 --device cuda --validation-only
+
+python -m src.xiamen_forecast.train_xiamen --station lianyungang --model-type cnn_gru --loss-type whuber --extreme-alpha 2 --huber-delta-cm 5 --batch-size 32 --epochs 50 --patience 8 --lr 0.001 --optimizer adam --seed 42 --device cuda --validation-only
+```
+
+输出严格隔离在：
+
+```text
+models/lianyungang/formal_seed42/cnn_gru_extreme_wmse/
+models/lianyungang/formal_seed42/cnn_gru_extreme_awmse/
+models/lianyungang/formal_seed42/cnn_gru_extreme_whuber/
+```
+
+汇总全部已完成的一步实验：
+
+```powershell
+python -m src.xiamen_forecast.compare_extreme_losses --station lianyungang
+```
+
+主要检查：
+
+```text
+outputs/experiments/lianyungang/extreme_loss_ablation_1996_seed42/validation_extreme_loss_summary.csv
+outputs/experiments/lianyungang/extreme_loss_ablation_1996_seed42/validation_positive_peak_events.csv
+outputs/experiments/lianyungang/extreme_loss_ablation_1996_seed42/validation_extreme_loss_details.json
+outputs/experiments/lianyungang/extreme_loss_ablation_1996_seed42/experiment_metadata.json
+outputs/experiments/lianyungang/extreme_loss_ablation_1996_seed42/validation_extreme_loss_comparison.png
+```
+
+先比较整体RMSE代价、正向P99 RMSE、P99 bias、低估比例和独立正向事件峰值误差。预设实用目标是P99 RMSE降低至少10%、整体RMSE恶化不超过5%；这是筛选规则，不是预先保证的结果。
+
+### 3. rollout-6两阶段消融（一步结果确认后再运行）
+
+下列四条路线分别隔离“一步损失”和“递归微调损失”的贡献。第一条已有，无需重跑。其余命令只能在人工确认一步结果后执行：
+
+```powershell
+# 已有基线：MSE一步 + MSE rollout-6
+# models\lianyungang\formal_seed42\cnn_gru_rollout6\best_model.pth
+
+# WMSE一步 + MSE rollout-6
+python -m src.xiamen_forecast.train_rollout_temporal --station lianyungang --model-type cnn_gru --base-checkpoint "models\lianyungang\formal_seed42\cnn_gru_extreme_wmse\best_model.pth" --loss-type mse --rollout-steps 6 --epochs 20 --patience 5 --teacher-forcing-epochs 5 --learning-rate 0.0001 --seed 42 --device cuda
+
+# WMSE一步 + WMSE rollout-6
+python -m src.xiamen_forecast.train_rollout_temporal --station lianyungang --model-type cnn_gru --base-checkpoint "models\lianyungang\formal_seed42\cnn_gru_extreme_wmse\best_model.pth" --loss-type wmse --extreme-alpha 2 --rollout-steps 6 --epochs 20 --patience 5 --teacher-forcing-epochs 5 --learning-rate 0.0001 --seed 42 --device cuda
+
+# AWMSE一步 + AWMSE rollout-6
+python -m src.xiamen_forecast.train_rollout_temporal --station lianyungang --model-type cnn_gru --base-checkpoint "models\lianyungang\formal_seed42\cnn_gru_extreme_awmse\best_model.pth" --loss-type awmse --extreme-alpha 2 --extreme-beta 1 --rollout-steps 6 --epochs 20 --patience 5 --teacher-forcing-epochs 5 --learning-rate 0.0001 --seed 42 --device cuda
+```
+
+自动目录分别为：
+
+```text
+cnn_gru_extreme_wmse_rollout6_mse/
+cnn_gru_extreme_wmse_rollout6_wmse/
+cnn_gru_extreme_awmse_rollout6_awmse/
+```
+
+在完全相同的1996共同起报时刻比较已有基线和新checkpoint：
+
+```powershell
+python -m src.xiamen_forecast.rolling_diagnostics --station lianyungang --evaluation-year 1996 --split validation --models cnn_gru --device cuda --rollout-checkpoint "models\lianyungang\formal_seed42\cnn_gru_rollout6\best_model.pth" --extra-checkpoint "wmse_one_mse_rollout=models\lianyungang\formal_seed42\cnn_gru_extreme_wmse_rollout6_mse\best_model.pth" --extra-checkpoint "wmse_one_wmse_rollout=models\lianyungang\formal_seed42\cnn_gru_extreme_wmse_rollout6_wmse\best_model.pth" --extra-checkpoint "awmse_one_awmse_rollout=models\lianyungang\formal_seed42\cnn_gru_extreme_awmse_rollout6_awmse\best_model.pth" --output-dir "outputs\experiments\lianyungang\extreme_rollout_ablation_1996_seed42"
+```
+
+`rolling_metrics_long.csv`包含1、3、6、12、24、48、72小时整体指标、历史兼容的绝对Top 5%指标，以及新增的正向P90/P95/P99 RMSE、bias、低估比例、平均低估和平均高估幅度。`rolling_predictions_selected_leads.csv`保留模型配对所需的共同起报和验证时刻。
+
+方法选择阶段只提交上述小型CSV、JSON和PNG供检查，不提交GESLA、ERA5、NPY、逐时大型数组或`.pth`权重。只有连云港1996结果通过人工检查后，才考虑rollout消融、其他站复验及回顾性的1997评价。
