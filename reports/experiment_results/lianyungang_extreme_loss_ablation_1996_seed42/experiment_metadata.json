@@ -1,0 +1,17 @@
+{
+  "station": "lianyungang",
+  "validation_year": 1996,
+  "test_year_loaded": false,
+  "common_timestamp_count": 8784,
+  "sources": {
+    "mse": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\cnn_gru\\validation_predictions.csv",
+    "wmse": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\cnn_gru_extreme_wmse\\validation_predictions.csv",
+    "awmse": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\cnn_gru_extreme_awmse\\validation_predictions.csv",
+    "whuber": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\cnn_gru_extreme_whuber\\validation_predictions.csv"
+  },
+  "selection_targets": {
+    "positive_p99_rmse_reduction_percent": 10.0,
+    "maximum_overall_rmse_degradation_percent": 5.0,
+    "long_lead_rule": "assess separately with rolling_diagnostics"
+  }
+}
