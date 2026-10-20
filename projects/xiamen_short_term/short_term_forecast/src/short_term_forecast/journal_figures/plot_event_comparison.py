@@ -10,7 +10,10 @@ import numpy as np
 import pandas as pd
 
 from . import io_utils
-from .style import apply_axis_style, close_figure, format_time_axis, save_figure, setup_journal_style
+from .style import (
+    NEGATIVE_ERROR_COLOR, POSITIVE_ERROR_COLOR, apply_axis_style,
+    close_figure, format_time_axis, model_color, save_figure, setup_journal_style,
+)
 
 
 def _event_metrics(df: pd.DataFrame) -> dict[str, float]:
@@ -71,7 +74,7 @@ def plot_event_comparison(
         metrics = _event_metrics(frame)
 
         ax_ts.plot(x_values, observed, color="black", marker="o", markersize=2.6, label="Observed")
-        ax_ts.plot(x_values, predicted, color="#0072B2", marker="s", markersize=2.6, label="Predicted")
+        ax_ts.plot(x_values, predicted, color=model_color("predicted"), marker="s", markersize=2.6, label="Predicted")
         ax_ts.set_ylim(y_low, y_high)
         ax_ts.set_ylabel("Storm surge (cm)")
         ax_ts.set_title(name, loc="left", fontsize=8)
@@ -89,7 +92,7 @@ def plot_event_comparison(
         apply_axis_style(ax_ts)
 
         ax_err.axhline(0, color="black", linestyle="--", linewidth=0.8)
-        colors = np.where(error >= 0, "#0072B2", "#D55E00")
+        colors = np.where(error >= 0, POSITIVE_ERROR_COLOR, NEGATIVE_ERROR_COLOR)
         ax_err.bar(np.arange(1, len(error) + 1), error, color=colors, width=0.8)
         ax_err.set_ylim(-e_lim, e_lim)
         ax_err.set_ylabel("Error (cm)")

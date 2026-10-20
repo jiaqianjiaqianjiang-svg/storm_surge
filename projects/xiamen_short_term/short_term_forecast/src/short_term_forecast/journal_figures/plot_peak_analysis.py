@@ -11,7 +11,10 @@ import numpy as np
 import pandas as pd
 
 from . import io_utils
-from .style import apply_axis_style, close_figure, label_panels, save_figure, setup_journal_style
+from .style import (
+    NEGATIVE_ERROR_COLOR, POSITIVE_ERROR_COLOR, apply_axis_style,
+    close_figure, label_panels, model_color, save_figure, setup_journal_style,
+)
 
 
 DEFAULT_PERCENTILES = (90.0, 95.0, 99.0)
@@ -86,7 +89,7 @@ def plot_peak_analysis(
         ax_scatter.text(0.5, 0.5, "No peak samples", transform=ax_scatter.transAxes, ha="center", va="center")
     else:
         error = peak_df["predicted"] - peak_df["observed"]
-        colors = np.where(error >= 0, "#0072B2", "#D55E00")
+        colors = np.where(error >= 0, POSITIVE_ERROR_COLOR, NEGATIVE_ERROR_COLOR)
         ax_scatter.scatter(peak_df["observed"], peak_df["predicted"], c=colors, alpha=0.85, s=24)
         low = float(np.nanmin([peak_df["observed"].min(), peak_df["predicted"].min()]))
         high = float(np.nanmax([peak_df["observed"].max(), peak_df["predicted"].max()]))
@@ -99,7 +102,7 @@ def plot_peak_analysis(
         error = peak_df["predicted"] - peak_df["observed"]
         ax_error.hist(error, bins=min(12, max(4, len(error))), color="#BDBDBD", edgecolor="#333333")
         ax_error.axvline(0, color="black", linestyle="--", linewidth=0.9)
-        ax_error.axvline(np.nanmean(error), color="#D55E00", linewidth=1.2, label="Mean bias")
+        ax_error.axvline(np.nanmean(error), color=NEGATIVE_ERROR_COLOR, linewidth=1.2, label="Mean bias")
         ax_error.legend(loc="best")
     ax_error.set_xlabel("Peak error (cm)")
     ax_error.set_ylabel("Count")
@@ -109,7 +112,7 @@ def plot_peak_analysis(
     x = np.arange(len(top))
     width = 0.38
     ax_top.bar(x - width / 2, top["observed"], width, color="black", label="Observed")
-    ax_top.bar(x + width / 2, top["predicted"], width, color="#0072B2", label="Predicted")
+    ax_top.bar(x + width / 2, top["predicted"], width, color=model_color("predicted"), label="Predicted")
     ax_top.set_xlabel(f"Top-{len(top)} events")
     ax_top.set_ylabel("Storm surge (cm)")
     ax_top.set_xticks(x)
@@ -120,7 +123,7 @@ def plot_peak_analysis(
     ax_ratio.bar(
         [f"P{int(p)}" for p in metrics_df["percentile"]],
         metrics_df["underestimation_ratio"] * 100.0,
-        color="#D55E00",
+        color=NEGATIVE_ERROR_COLOR,
         edgecolor="#333333",
         linewidth=0.6,
     )

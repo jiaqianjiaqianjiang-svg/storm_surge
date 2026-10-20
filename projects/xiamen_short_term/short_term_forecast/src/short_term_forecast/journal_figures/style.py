@@ -22,20 +22,36 @@ import numpy as np
 DPI = 400
 
 MODEL_COLORS = {
-    "observed": "black",
-    "observation": "black",
-    "persistence": "#E69F00",
-    "ridge": "#666666",
-    "surge_mlp": "#56B4E9",
-    "era5_cnn": "#CC79A7",
-    "cnn": "#0072B2",
-    "cnn_lstm": "#009E73",
-    "cnn_gru": "#6A3D9A",
-    "cnn_gru_rollout6": "#B2182B",
-    "tcn": "#D55E00",
-    "transformer": "#8B5A2B",
-    "forecast": "#0072B2",
-    "predicted": "#0072B2",
+    "observed": "#202428",
+    "observation": "#202428",
+    "persistence": "#8B9298",
+    "ridge": "#555E66",
+    "surge_mlp": "#899DA5",
+    "era5_cnn": "#A7A9A5",
+    "cnn": "#698896",
+    "cnn_lstm": "#3F7180",
+    "cnn_gru": "#20566B",
+    "cnn_gru_rollout6": "#A74F49",
+    "tcn": "#858F88",
+    "transformer": "#8C8077",
+    "forecast": "#20566B",
+    "predicted": "#20566B",
+}
+
+POSITIVE_ERROR_COLOR = "#20566B"
+NEGATIVE_ERROR_COLOR = "#A74F49"
+
+MODEL_LINESTYLES = {
+    "persistence": "--", "ridge": "-.", "surge_mlp": ":",
+    "era5_cnn": "--", "cnn": "-", "cnn_lstm": "--",
+    "cnn_gru": "-", "cnn_gru_rollout6": "-", "tcn": ":",
+    "transformer": "-.",
+}
+MODEL_MARKERS = {
+    "persistence": "^", "ridge": "s", "surge_mlp": "D",
+    "era5_cnn": "v", "cnn": "o", "cnn_lstm": "P",
+    "cnn_gru": "o", "cnn_gru_rollout6": "s", "tcn": "X",
+    "transformer": "d",
 }
 
 MODEL_LABELS = {
@@ -100,9 +116,9 @@ def setup_journal_style(font_size: float = 8.0, language: str = "en") -> None:
             "legend.fontsize": font_size - 1,
             "legend.frameon": False,
             "lines.linewidth": 1.4,
-            "grid.color": "#D9D9D9",
-            "grid.linewidth": 0.6,
-            "grid.alpha": 0.75,
+            "grid.color": "#E3E6E8",
+            "grid.linewidth": 0.55,
+            "grid.alpha": 0.8,
             "figure.facecolor": "white",
             "axes.facecolor": "white",
             "savefig.facecolor": "white",
@@ -135,6 +151,15 @@ def model_color(name: str | None) -> str:
     return MODEL_COLORS.get(str(name).lower(), MODEL_COLORS["forecast"])
 
 
+def model_line_style(name: str) -> dict[str, str]:
+    key = str(name).lower()
+    return {
+        "color": model_color(key),
+        "linestyle": MODEL_LINESTYLES.get(key, "-"),
+        "marker": MODEL_MARKERS.get(key, "o"),
+    }
+
+
 def model_label(name: str | None) -> str:
     if not name:
         return "Forecast"
@@ -146,12 +171,23 @@ def apply_axis_style(ax: plt.Axes, grid: bool = True) -> None:
     """Apply shared axis styling."""
 
     if grid:
-        ax.grid(True, color="#D9D9D9", linewidth=0.6, alpha=0.75)
+        ax.grid(axis="y", color="#E3E6E8", linewidth=0.55, alpha=0.8)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     for side in ("left", "bottom"):
         ax.spines[side].set_color("#333333")
         ax.spines[side].set_linewidth(0.8)
+
+
+def format_lead_axis(ax: plt.Axes, leads: Iterable[float], language: str = "en") -> None:
+    """Show selected lead times legibly without changing their values."""
+
+    values = sorted({float(value) for value in leads if np.isfinite(value) and value > 0})
+    ax.set_xscale("log")
+    ax.set_xticks(values)
+    ax.set_xticklabels([f"{value:g}" for value in values])
+    ax.minorticks_off()
+    ax.set_xlabel("提前量（h，对数刻度）" if language == "zh" else "Lead time (h, log scale)")
 
 
 def label_panels(axes: Iterable[plt.Axes], x: float = -0.12, y: float = 1.04) -> None:

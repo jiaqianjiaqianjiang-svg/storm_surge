@@ -8,7 +8,8 @@ import pandas as pd
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPOSITORY_ROOT / "tools"))
 
-from compare_china_short_term_stations import load_comparison, write_outputs
+from compare_china_short_term_stations import MODEL_COLORS, load_comparison, write_outputs
+from src.short_term_forecast.journal_figures.style import model_color, model_line_style
 
 
 STATIONS = ("xiamen", "lianyungang", "beihai")
@@ -17,6 +18,13 @@ ONE_STEP_MODELS = (
     "cnn_lstm", "cnn_gru", "tcn", "transformer",
 )
 ROLLING_MODELS = (*ONE_STEP_MODELS, "cnn_gru_rollout6")
+
+
+def test_station_and_journal_figures_share_model_identity() -> None:
+    for model, color in MODEL_COLORS.items():
+        assert model_color(model) == color
+    assert model_line_style("cnn_gru") != model_line_style("cnn_gru_rollout6")
+    assert model_line_style("persistence")["linestyle"] != model_line_style("cnn_gru")["linestyle"]
 
 
 def _write_package(root: Path, station: str) -> None:

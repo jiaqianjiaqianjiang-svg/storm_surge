@@ -42,16 +42,24 @@ MODEL_LABELS = {
     "transformer": "Transformer",
 }
 MODEL_COLORS = {
-    "persistence": "#E69F00",
-    "ridge": "#666666",
-    "surge_mlp": "#56B4E9",
-    "era5_cnn": "#CC79A7",
-    "cnn": "#0072B2",
-    "cnn_lstm": "#009E73",
-    "cnn_gru": "#6A3D9A",
-    "cnn_gru_rollout6": "#B2182B",
-    "tcn": "#D55E00",
-    "transformer": "#8B5A2B",
+    "persistence": "#8B9298",
+    "ridge": "#555E66",
+    "surge_mlp": "#899DA5",
+    "era5_cnn": "#A7A9A5",
+    "cnn": "#698896",
+    "cnn_lstm": "#3F7180",
+    "cnn_gru": "#20566B",
+    "cnn_gru_rollout6": "#A74F49",
+    "tcn": "#858F88",
+    "transformer": "#8C8077",
+}
+MODEL_LINESTYLES = {
+    "persistence": "--", "ridge": "-.", "cnn": "-",
+    "cnn_lstm": "--", "cnn_gru": "-", "cnn_gru_rollout6": "-",
+}
+MODEL_MARKERS = {
+    "persistence": "^", "ridge": "s", "cnn": "o",
+    "cnn_lstm": "P", "cnn_gru": "o", "cnn_gru_rollout6": "s",
 }
 
 
@@ -196,9 +204,9 @@ def _setup_style(language: str) -> None:
         "legend.fontsize": 7,
         "axes.edgecolor": "#333333",
         "axes.linewidth": 0.8,
-        "grid.color": "#D9D9D9",
-        "grid.linewidth": 0.6,
-        "grid.alpha": 0.75,
+        "grid.color": "#E3E6E8",
+        "grid.linewidth": 0.55,
+        "grid.alpha": 0.8,
         "figure.facecolor": "white",
         "axes.facecolor": "white",
         "savefig.facecolor": "white",
@@ -244,12 +252,17 @@ def plot_rolling(rolling: pd.DataFrame, destination: Path, language: str) -> Non
         for model in ROLLING_MODELS:
             values = station[station.model == model].set_index("lead_hours").reindex(LEADS)
             ax.plot(
-                LEADS, values.rmse_cm, marker="o", markersize=3.2,
+                LEADS, values.rmse_cm,
+                marker=MODEL_MARKERS[model], markersize=3.2,
+                linestyle=MODEL_LINESTYLES[model],
+                linewidth=1.9 if model == "cnn_gru_rollout6" else 1.15,
                 color=MODEL_COLORS[model], label=MODEL_LABELS[model],
             )
-        ax.set_xticks(LEADS)
+        ax.set_xscale("log")
+        ax.set_xticks(LEADS, [str(lead) for lead in LEADS])
+        ax.minorticks_off()
         ax.set_title(station_zh if language == "zh" else station_en)
-        ax.set_xlabel("提前量（h）" if language == "zh" else "Lead time (h)")
+        ax.set_xlabel("提前量（h，对数刻度）" if language == "zh" else "Lead time (h, log scale)")
         _style_axis(ax)
     axes[0].set_ylabel("RMSE（cm）" if language == "zh" else "RMSE (cm)")
     handles, labels = axes[-1].get_legend_handles_labels()
@@ -262,14 +275,17 @@ def plot_rolling(rolling: pd.DataFrame, destination: Path, language: str) -> Non
 def plot_p99(summary: pd.DataFrame, destination: Path, language: str) -> None:
     _setup_style(language)
     labels = summary.station_zh if language == "zh" else summary.station
-    colors = ("#0072B2", "#D55E00", "#009E73")
+    colors = ("#7C868B", "#555E66", "#A7AFB2")
+    hatches = ("", "//", "xx")
     fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.25))
     metrics = (
         ("p99_rmse_cm", "P99 RMSE（cm）" if language == "zh" else "P99 RMSE (cm)", "{:.2f}"),
         ("p99_underestimation_percent", "低估比例（%）" if language == "zh" else "Underestimation ratio (%)", "{:.1f}"),
     )
     for ax, (column, ylabel, fmt) in zip(axes, metrics):
-        bars = ax.bar(labels, summary[column], color=colors, width=0.62, zorder=2)
+        bars = ax.bar(labels, summary[column], color=colors, edgecolor="#41484D", linewidth=0.5, width=0.62, zorder=2)
+        for bar, hatch in zip(bars, hatches):
+            bar.set_hatch(hatch)
         ax.set_ylabel(ylabel)
         _style_axis(ax)
         for bar, value in zip(bars, summary[column]):

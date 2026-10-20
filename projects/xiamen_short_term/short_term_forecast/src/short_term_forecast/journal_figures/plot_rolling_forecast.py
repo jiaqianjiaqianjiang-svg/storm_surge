@@ -10,7 +10,10 @@ import numpy as np
 import pandas as pd
 
 from . import io_utils
-from .style import apply_axis_style, close_figure, format_time_axis, label_panels, save_figure, setup_journal_style
+from .style import (
+    NEGATIVE_ERROR_COLOR, POSITIVE_ERROR_COLOR, apply_axis_style, close_figure,
+    format_time_axis, label_panels, model_color, save_figure, setup_journal_style,
+)
 
 
 def _cumulative_metrics(error: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -58,28 +61,28 @@ def plot_rolling_forecast(
     ax_ts, ax_err, ax_abs, ax_cum = axes.ravel()
 
     ax_ts.plot(dates, observed, color="black", marker="o", markersize=3, label="Observed")
-    ax_ts.plot(dates, predicted, color="#0072B2", marker="s", markersize=3, label="Rolling forecast")
+    ax_ts.plot(dates, predicted, color=model_color("forecast"), marker="s", markersize=3, label="Rolling forecast")
     if "persistence" in df.columns:
-        ax_ts.plot(dates, df["persistence"], color="#E69F00", linestyle="--", marker="^", markersize=3, label="Persistence")
+        ax_ts.plot(dates, df["persistence"], color=model_color("persistence"), linestyle="--", marker="^", markersize=3, label="Persistence")
     ax_ts.set_xlabel(x_label)
     ax_ts.set_ylabel("Storm surge (cm)")
     ax_ts.legend(loc="best")
     apply_axis_style(ax_ts)
 
     ax_err.axhline(0, color="#333333", linewidth=0.8)
-    colors = np.where(error >= 0, "#0072B2", "#D55E00")
+    colors = np.where(error >= 0, POSITIVE_ERROR_COLOR, NEGATIVE_ERROR_COLOR)
     ax_err.bar(lead, error, color=colors, edgecolor="none", width=0.8)
     ax_err.set_xlabel("Lead time (h)")
     ax_err.set_ylabel("Forecast error (cm)")
     apply_axis_style(ax_err)
 
-    ax_abs.plot(lead, abs_error, color="#6A3D9A", marker="o", markersize=3)
+    ax_abs.plot(lead, abs_error, color=model_color("forecast"), marker="o", markersize=3)
     ax_abs.set_xlabel("Lead time (h)")
     ax_abs.set_ylabel("Absolute error (cm)")
     apply_axis_style(ax_abs)
 
-    ax_cum.plot(lead, cumulative_rmse, color="#D55E00", marker="o", markersize=3, label="Cumulative RMSE")
-    ax_cum.plot(lead, cumulative_mae, color="#0072B2", marker="s", markersize=3, label="Cumulative MAE")
+    ax_cum.plot(lead, cumulative_rmse, color=NEGATIVE_ERROR_COLOR, marker="o", markersize=3, label="Cumulative RMSE")
+    ax_cum.plot(lead, cumulative_mae, color=POSITIVE_ERROR_COLOR, linestyle="--", marker="s", markersize=3, label="Cumulative MAE")
     ax_cum.set_xlabel("Lead time (h)")
     ax_cum.set_ylabel("Cumulative error (cm)")
     ax_cum.legend(loc="best")

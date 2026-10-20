@@ -12,7 +12,10 @@ import numpy as np
 import pandas as pd
 
 from . import io_utils
-from .style import apply_axis_style, close_figure, format_time_axis, label_panels, save_figure, setup_journal_style
+from .style import (
+    NEGATIVE_ERROR_COLOR, apply_axis_style, close_figure,
+    format_time_axis, label_panels, model_color, save_figure, setup_journal_style,
+)
 
 
 def _skewness(values: np.ndarray) -> float:
@@ -92,7 +95,7 @@ def plot_residual_diagnostics(
     ax_ts, ax_hist, ax_qq, ax_acf = axes.ravel()
 
     ax_ts.axhline(0, color="black", linestyle="--", linewidth=0.8)
-    ax_ts.plot(x_values, residual, color="#0072B2", linewidth=1.1)
+    ax_ts.plot(x_values, residual, color=model_color("forecast"), linewidth=1.1)
     ax_ts.set_xlabel(x_label)
     ax_ts.set_ylabel("Residual (cm)")
     apply_axis_style(ax_ts)
@@ -103,7 +106,7 @@ def plot_residual_diagnostics(
     ax_hist.hist(finite, bins=min(25, max(6, int(np.sqrt(max(len(finite), 1))))), density=True, color="#BDBDBD", edgecolor="#333333")
     if finite.size:
         xs = np.linspace(float(np.min(finite)), float(np.max(finite)), 200)
-        ax_hist.plot(xs, _normal_density(xs, float(np.mean(finite)), float(np.std(finite))), color="#D55E00", linewidth=1.3)
+        ax_hist.plot(xs, _normal_density(xs, float(np.mean(finite)), float(np.std(finite))), color=NEGATIVE_ERROR_COLOR, linewidth=1.3)
     ax_hist.axvline(0, color="black", linestyle="--", linewidth=0.8)
     ax_hist.set_xlabel("Residual (cm)")
     ax_hist.set_ylabel("Density")
@@ -115,7 +118,7 @@ def plot_residual_diagnostics(
         normal = NormalDist()
         theoretical = np.asarray([normal.inv_cdf(float(p)) for p in probs])
         theoretical = theoretical * np.std(finite) + np.mean(finite)
-        ax_qq.scatter(theoretical, sorted_resid, s=14, color="#0072B2", alpha=0.8)
+        ax_qq.scatter(theoretical, sorted_resid, s=14, color=model_color("forecast"), alpha=0.8)
         low = float(np.nanmin([theoretical.min(), sorted_resid.min()]))
         high = float(np.nanmax([theoretical.max(), sorted_resid.max()]))
         ax_qq.plot([low, high], [low, high], color="black", linestyle="--", linewidth=0.9)
@@ -126,7 +129,7 @@ def plot_residual_diagnostics(
     lags = np.arange(1, 73)
     acf = np.asarray([_autocorrelation(residual, int(lag)) for lag in lags])
     ax_acf.axhline(0, color="black", linewidth=0.8)
-    ax_acf.bar(lags, acf, color="#6A3D9A", edgecolor="none", width=0.8)
+    ax_acf.bar(lags, acf, color=model_color("forecast"), edgecolor="none", width=0.8)
     ax_acf.set_xlabel("Lag (h)")
     ax_acf.set_ylabel("Autocorrelation")
     ax_acf.set_xlim(0, 73)

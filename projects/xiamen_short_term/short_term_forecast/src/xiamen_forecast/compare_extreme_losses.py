@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 
 from .evaluate import calculate_detailed_metrics
 from .station_config import STATIONS, get_station_config, validate_output_location
+from ..short_term_forecast.journal_figures.style import setup_journal_style
 
 
 MODULE_ROOT = Path(__file__).resolve().parents[2]
@@ -165,6 +166,7 @@ def summarise_predictions(frame: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, 
 
 
 def plot_summary(frame: pd.DataFrame, destination: Path, station_name: str) -> None:
+    setup_journal_style(font_size=8.0)
     x = np.arange(len(frame))
     labels = frame.display_name.tolist()
     fig, axes = plt.subplots(2, 3, figsize=(14, 7.4))
@@ -175,10 +177,14 @@ def plot_summary(frame: pd.DataFrame, destination: Path, station_name: str) -> N
         ("positive_p99_underestimation_ratio", "P99 underestimation ratio"),
         ("positive_event_peak_rmse_cm", "Positive-event peak RMSE (cm)"),
     )
-    colors = ["#4D4D4D", "#2166AC", "#B2182B", "#6A3D9A"][: len(frame)]
+    palette = {
+        "mse": "#555E66", "wmse": "#8B9298",
+        "awmse": "#20566B", "whuber": "#A74F49",
+    }
+    colors = [palette[key] for key in frame.experiment]
     for panel, (ax, (column, ylabel)) in enumerate(zip(axes.flat, panels)):
         values = frame[column].to_numpy(dtype=float)
-        bars = ax.bar(x, values, color=colors, width=0.68)
+        bars = ax.bar(x, values, color=colors, edgecolor="#41484D", linewidth=0.5, width=0.68)
         ax.axhline(0, color="black", linewidth=0.8)
         ax.set_ylabel(ylabel)
         ax.set_xticks(x, labels, rotation=20, ha="right")
@@ -196,7 +202,7 @@ def plot_summary(frame: pd.DataFrame, destination: Path, station_name: str) -> N
                     fontsize=8,
                 )
     axes.flat[-1].axis("off")
-    fig.suptitle(f"{station_name} 1996 validation: extreme-loss ablation", fontsize=12)
+    fig.suptitle(f"{station_name} 1996 validation: extreme-loss ablation", fontsize=9)
     fig.tight_layout()
     fig.savefig(destination, dpi=400, bbox_inches="tight")
     plt.close(fig)

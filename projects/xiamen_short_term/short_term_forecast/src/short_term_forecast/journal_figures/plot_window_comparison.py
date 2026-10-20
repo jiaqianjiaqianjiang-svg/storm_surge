@@ -18,6 +18,7 @@ from .style import (
     format_time_axis,
     label_panels,
     metric_label,
+    model_color,
     save_figure,
     setup_journal_style,
 )
@@ -105,7 +106,7 @@ def plot_window_metrics(
     labels = [f"t={int(value)} h" for value in table["input_steps"]]
     for ax, metric in zip(axes_flat, required):
         values = table[metric].to_numpy(float) if metric in table.columns else np.full(len(table), np.nan)
-        ax.bar(labels, values, color="#6BAED6", edgecolor="#333333", linewidth=0.6)
+        ax.bar(labels, values, color=model_color("cnn"), edgecolor="#333333", linewidth=0.6)
         ax.set_ylabel(metric_label(metric))
         add_bar_labels(ax, values, fmt="{:.2f}" if metric != "pearson_r" else "{:.3f}")
         apply_axis_style(ax)
@@ -152,10 +153,12 @@ def plot_window_timeseries(
     fig, ax = plt.subplots(figsize=(7.2, 3.2))
     first = next(iter(frames.values())).set_index("datetime").sort_index()
     ax.plot(common_index, first.loc[common_index, "observed"], color="black", label="Observed", linewidth=1.5)
-    colors = {8: "#74A9CF", 12: "#2B8CBE", 24: "#045A8D"}
+    colors = {8: "#899DA5", 12: "#3F7180", 24: "#20566B"}
+    line_styles = {8: ":", 12: "--", 24: "-"}
+    markers = {8: "^", 12: "s", 24: "o"}
     for window in sorted(frames):
         frame = frames[window].set_index("datetime").sort_index()
-        ax.plot(common_index, frame.loc[common_index, "predicted"], label=f"t={window} h", color=colors.get(window), linewidth=1.2)
+        ax.plot(common_index, frame.loc[common_index, "predicted"], label=f"t={window} h", color=colors.get(window, model_color("forecast")), linestyle=line_styles.get(window, "-"), marker=markers.get(window, "o"), markevery=max(1, len(common_index) // 12), markersize=2.5, linewidth=1.2)
     ax.set_xlabel("Time")
     ax.set_ylabel("Storm surge (cm)")
     apply_axis_style(ax)
@@ -188,7 +191,7 @@ def plot_window_scatter(
         obs = frame["observed"].to_numpy(float)
         pred = frame["predicted"].to_numpy(float)
         metric = io_utils.compute_metrics_from_predictions(frame)
-        hb = ax.hexbin(obs, pred, gridsize=35, mincnt=1, cmap="Blues")
+        hb = ax.hexbin(obs, pred, gridsize=35, mincnt=1, cmap="Greys")
         low = float(np.nanmin([np.nanmin(obs), np.nanmin(pred)]))
         high = float(np.nanmax([np.nanmax(obs), np.nanmax(pred)]))
         ax.plot([low, high], [low, high], color="black", linestyle="--", linewidth=0.9)

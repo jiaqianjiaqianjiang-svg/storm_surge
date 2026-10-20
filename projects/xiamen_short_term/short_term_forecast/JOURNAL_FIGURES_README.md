@@ -170,16 +170,19 @@ MODEL_COLORS = {...}
 setup_journal_style(font_size=8.0)
 ```
 
-字体优先使用 Arial；如果系统没有 Arial，会自动回退到 DejaVu Sans。颜色固定为：
+字体优先使用 Arial；如果系统没有 Arial，会自动回退到 DejaVu Sans。当前图件使用低饱和度配色：参照模型以灰色为主，CNN-GRU 用深蓝，rollout-6 用砖红；折线同时以线型和标记区分模型，避免只靠颜色识别。颜色、线型和标记分别在 `MODEL_COLORS`、`MODEL_LINESTYLES`、`MODEL_MARKERS` 中调整。误差正负号使用深蓝/砖红区分。三站对比图 `tools/compare_china_short_term_stations.py` 采用相同的模型配色。主要颜色：
 
 ```text
-observed: black
-persistence: orange
-cnn: blue
-cnn_lstm: green
-cnn_gru: purple
-tcn: red
-transformer: brown
+observed: near-black
+persistence / ridge: grey
+cnn / cnn_lstm: muted blue-grey
+cnn_gru: deep blue
+cnn_gru_rollout6: muted brick red
+tcn / transformer: muted grey
 ```
 
 脚本只使用 matplotlib，不使用 seaborn，也不会使用 rainbow/jet 色带。
+
+改变绘图样式不会修改原始结果包或重新计算指标；在实验室用相同制图命令重新运行，输出到新的图目录并核对 `figure_manifest.csv` 后，再替换旧版图件。学术绘图规范参考 [scientific-visualization skill](https://github.com/K-Dense-AI/scientific-agent-skills/tree/main/skills/scientific-visualization)。
+
+1–72 h 曲线采用明确标注的对数横轴，以便 1、3、6 h 的刻度在论文版面中也能分开；RMSE 等数值仍按原始提前量计算。

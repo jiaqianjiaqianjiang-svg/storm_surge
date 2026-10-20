@@ -23,8 +23,10 @@ from .plot_residual_diagnostics import plot_residual_diagnostics
 from .style import (
     apply_axis_style,
     close_figure,
+    format_lead_axis,
     label_panels,
     model_color,
+    model_line_style,
     model_label,
     save_figure,
     setup_journal_style,
@@ -215,7 +217,7 @@ def _annotate_bars(ax: plt.Axes, values: np.ndarray, decimals: int = 2) -> None:
             ha="center",
             va="bottom" if value >= 0 else "top",
             fontsize=6.5,
-            rotation=90 if len(values) > 7 else 0,
+            rotation=0,
         )
 
 
@@ -239,16 +241,20 @@ def plot_one_step_summary(
         ("mae_cm", text["mae"], 2),
         ("bias_cm", text["bias"], 2),
     )
-    fig, axes = plt.subplots(2, 2, figsize=(7.2, 5.8))
+    fig, axes = plt.subplots(2, 2, figsize=(8.0, 5.8))
     for ax, (column, ylabel, decimals) in zip(axes.ravel(), panels):
         values = table[column].to_numpy(float)
-        ax.bar(labels, values, color=colors, edgecolor="#333333", linewidth=0.45)
+        ax.bar(labels, values, color=colors, edgecolor="#41484D", linewidth=0.45)
         ax.axhline(0, color="#333333", linewidth=0.7)
         ax.set_ylabel(ylabel)
         ax.tick_params(axis="x", rotation=35)
         for tick in ax.get_xticklabels():
             tick.set_ha("right")
         _annotate_bars(ax, values, decimals)
+        if column == "bias_cm" and np.isfinite(values).any():
+            finite = values[np.isfinite(values)]
+            pad = max(float(np.ptp(finite)) * 0.17, 0.2)
+            ax.set_ylim(float(np.min(finite)) - pad, float(np.max(finite)) + pad)
         apply_axis_style(ax)
     label_panels(axes.ravel(), x=-0.10, y=1.02)
     fig.tight_layout()
@@ -265,10 +271,9 @@ def _plot_rmse_lines(ax: plt.Axes, table: pd.DataFrame, models: tuple[str, ...])
         ax.plot(
             table["lead_hours"],
             table[model],
-            marker="o",
             markersize=3.2,
             linewidth=2.2 if emphasized else 1.15,
-            color=model_color(model),
+            **model_line_style(model),
             label=model_label(model),
             alpha=1.0 if emphasized else 0.82,
             zorder=4 if emphasized else 2,
@@ -284,13 +289,12 @@ def plot_rolling_overview(
         raise ValueError("rolling RMSE table missing lead_hours")
     setup_journal_style(font_size=8.0, language=language)
     text = _labels(language)
-    fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.25))
+    fig, axes = plt.subplots(1, 2, figsize=(8.4, 3.25))
     _plot_rmse_lines(axes[0], rolling_rmse, ROLLING_MODELS)
     _plot_rmse_lines(axes[1], rolling_rmse, COMPETITIVE_MODELS)
     for ax, title in zip(axes, (text["overall"], text["competitive"])):
-        ax.set_xlabel(text["lead"])
         ax.set_ylabel(text["rmse"])
-        ax.set_xticks(rolling_rmse["lead_hours"])
+        format_lead_axis(ax, rolling_rmse["lead_hours"], language)
         ax.set_title(title, loc="left")
         apply_axis_style(ax)
     axes[0].legend(loc="upper left", ncol=2, fontsize=6.2)
@@ -317,17 +321,16 @@ def plot_rollout_gain(
     rollout = rolling_rmse["cnn_gru_rollout6"].to_numpy(float)
     reduction = 100.0 * (1.0 - rollout / base)
     fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.0))
-    axes[0].plot(leads, base, marker="o", color=model_color("cnn_gru"), label=model_label("cnn_gru"))
+    axes[0].plot(leads, base, **model_line_style("cnn_gru"), label=model_label("cnn_gru"))
     axes[0].plot(
         leads,
         rollout,
-        marker="o",
         linewidth=2.2,
-        color=model_color("cnn_gru_rollout6"),
+        **model_line_style("cnn_gru_rollout6"),
         label=model_label("cnn_gru_rollout6"),
     )
-    axes[0].set(xlabel=text["lead"], ylabel=text["rmse"])
-    axes[0].set_xticks(leads)
+    axes[0].set(ylabel=text["rmse"])
+    format_lead_axis(axes[0], leads, language)
     axes[0].legend(loc="upper left")
     apply_axis_style(axes[0])
 
@@ -370,15 +373,13 @@ def plot_extreme_metrics(
             ax.plot(
                 subset["lead_hours"],
                 subset[metric],
-                marker="o",
                 markersize=3,
                 linewidth=2.0 if model == "cnn_gru_rollout6" else 1.25,
-                color=model_color(model),
+                **model_line_style(model),
                 label=model_label(model),
             )
-        ax.set_xlabel(text["lead"])
         ax.set_ylabel(ylabel)
-        ax.set_xticks(sorted(rolling_metrics["lead_hours"].unique()))
+        format_lead_axis(ax, rolling_metrics["lead_hours"], language)
         apply_axis_style(ax)
     axes[0].legend(loc="upper left", fontsize=6.3)
     label_panels(axes, x=-0.13, y=1.03)
