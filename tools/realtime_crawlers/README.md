@@ -23,7 +23,7 @@
 脚本：
 
 ```powershell
-python real_time_data_crawler\gfs_nomads_downloader.py
+python tools\realtime_crawlers\gfs_nomads_downloader.py
 ```
 
 默认下载最近可用 GFS cycle 的未来 0-24 小时，区域为：
@@ -38,13 +38,13 @@ toplat=35
 也可以指定巴威/浙闽台附近区域、时间和预报时效：
 
 ```powershell
-python real_time_data_crawler\gfs_nomads_downloader.py --date 20260706 --cycle 06 --hours 0-24 --leftlon 110 --rightlon 130 --bottomlat 15 --toplat 35
+python tools\realtime_crawlers\gfs_nomads_downloader.py --date 20260706 --cycle 06 --hours 0-24 --leftlon 110 --rightlon 130 --bottomlat 15 --toplat 35
 ```
 
 输出到：
 
 ```text
-real_time_data_crawler/output/gfs/
+E:\AAAqian\storm_surge_runtime_data\typhoon_data\gfs\
 ```
 
 变量：
@@ -70,13 +70,13 @@ real_time_data_crawler/output/gfs/
 脚本：
 
 ```powershell
-python real_time_data_crawler\nmc_typhoon_crawler.py --name 巴威
+python tools\realtime_crawlers\nmc_typhoon_crawler.py --name 巴威 --save-raw --save-forecast
 ```
 
 只抓当前活跃台风：
 
 ```powershell
-python real_time_data_crawler\nmc_typhoon_crawler.py --active
+python tools\realtime_crawlers\nmc_typhoon_crawler.py --active --save-raw --save-forecast
 ```
 
 ### 可以爬到什么
@@ -96,12 +96,37 @@ python real_time_data_crawler\nmc_typhoon_crawler.py --active
 
 ### 输出文件
 
-默认输出到 `real_time_data_crawler/output/`：
+默认输出到 `E:\AAAqian\storm_surge_runtime_data\typhoon_data\nmc\`：
 
 - `typhoons_年份.csv`：该年份台风列表
 - `raw_view_台风ID_名称.json`：官方接口原始数据
 - `track_台风ID_名称.csv`：整理后的历史路径
 - `forecast_台风ID_名称.csv`：整理后的机构预报路径
+
+GFS 和中央气象台台风路径都直接读取官方数据接口，不依赖 Chrome 或 Edge。浏览器仅用于浙江水位动态页面。直接接口可避免浏览器扩展、代理和驱动版本对下载造成干扰。
+
+## 2.1 台风路径与 GFS 联合实时监控
+
+通用监控脚本会自动识别当前活跃台风，同时保存台风实况路径、机构预报路径、原始 JSON，以及 GFS 的 U10、V10、PRMSL。省略 `--name` 时自动跟踪所有当前活跃台风：
+
+```powershell
+cd "E:\AAAqian\code\storm_surge_clean"
+E:\condaData\envs_dirs\mygpu\python.exe tools\realtime_crawlers\typhoon_realtime_monitor.py --hours 0-24 --interval-minutes 30
+```
+
+只测试一轮：
+
+```powershell
+E:\condaData\envs_dirs\mygpu\python.exe tools\realtime_crawlers\typhoon_realtime_monitor.py --once --hours 0-24
+```
+
+输出目录：
+
+```text
+E:\AAAqian\storm_surge_runtime_data\typhoon_data\realtime_monitor
+```
+
+其中 `PRMSL` 是 GFS 的平均海平面气压，对应常用数据命名中的 `MSL/msl`。
 
 ## 3. 潮位实况和水文数据
 

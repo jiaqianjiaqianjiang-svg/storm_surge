@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""Periodically fetch BAVI track data and GFS forcing fields.
+"""Periodically fetch current typhoon tracks and GFS forcing fields.
 
 This keeps the real-time workflow focused on two inputs:
-1. China NMC BAVI track/forecast data.
+1. China NMC observed and forecast typhoon tracks.
 2. GFS U10, V10 and PRMSL forcing from NOAA NOMADS.
 """
 
@@ -22,7 +22,7 @@ import nmc_typhoon_crawler as nmc
 SCRIPT_DIR = Path(__file__).resolve().parent
 from runtime_paths import TYPHOON_DATA_DIR
 
-DEFAULT_OUTPUT_DIR = TYPHOON_DATA_DIR / "bavi_monitor"
+DEFAULT_OUTPUT_DIR = TYPHOON_DATA_DIR / "realtime_monitor"
 
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -36,18 +36,19 @@ def now_text() -> str:
 
 
 def run_nmc(args: argparse.Namespace) -> None:
-    targets = ", ".join(args.names) if args.names else args.name
+    targets = ", ".join(args.names) if args.names else (args.name or "current active typhoon")
     print(f"[{now_text()}] crawling NMC typhoon track: {targets}")
+    active_only = args.active_only or not (args.name or args.names)
     nmc.crawl(
         SimpleNamespace(
             year=args.year,
             name=args.name,
             names=args.names,
-            active=args.active_only,
+            active=active_only,
             out=str(args.output_dir),
-            save_list=False,
-            save_raw=False,
-            save_forecast=False,
+            save_list=True,
+            save_raw=True,
+            save_forecast=True,
         )
     )
 
@@ -96,10 +97,10 @@ def run_once(args: argparse.Namespace) -> bool:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Continuously fetch BAVI NMC track and GFS forcing data.")
-    parser.add_argument("--name", default="巴威", help="Single typhoon keyword, e.g. 巴威, BAVI, 2609, or 3257931.")
+    parser = argparse.ArgumentParser(description="Continuously fetch NMC typhoon tracks and GFS forcing data.")
+    parser.add_argument("--name", default=None, help="Typhoon keyword. Omit it to follow all currently active typhoons.")
     parser.add_argument("--names", nargs="+", default=None, help="Multiple typhoon keywords to crawl at once.")
-    parser.add_argument("--year", default="2026", help="NMC typhoon list year.")
+    parser.add_argument("--year", default="latest", help="NMC typhoon list year. Default: latest available year.")
     parser.add_argument("--active-only", action="store_true", help="Only match active typhoons.")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR, help="Output directory.")
     parser.add_argument("--interval-minutes", type=float, default=30, help="Polling interval in minutes.")

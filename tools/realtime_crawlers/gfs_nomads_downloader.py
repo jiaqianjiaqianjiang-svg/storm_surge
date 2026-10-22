@@ -100,6 +100,9 @@ def download_one(url: str, out_path: Path, overwrite: bool) -> None:
     if len(data) < 2000 and (b"<!DOCTYPE" in data[:500] or b"Invalid" in data[:500] or b"Error" in data[:500]):
         preview = data[:500].decode("utf-8", errors="replace")
         raise RuntimeError(f"NOMADS did not return GRIB2 data for {url}\n{preview}")
+    if not data.startswith(b"GRIB"):
+        preview = data[:100].decode("utf-8", errors="replace")
+        raise RuntimeError(f"NOMADS response is not a GRIB2 file for {url}\n{preview}")
 
     out_path.write_bytes(data)
     print(f"saved: {out_path} ({len(data) / 1024:.1f} KB, {content_type})")
