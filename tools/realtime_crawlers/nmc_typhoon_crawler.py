@@ -15,7 +15,7 @@ import csv
 import json
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.error import URLError
@@ -52,6 +52,7 @@ TYPHOON_LIST_COLUMNS = [
 TRACK_COLUMNS = [
     "typhoon_id",
     "point_id",
+    "time_utc",
     "time_bj",
     "time_iso",
     "grade",
@@ -69,6 +70,7 @@ TRACK_COLUMNS = [
 FORECAST_COLUMNS = [
     "typhoon_id",
     "point_id",
+    "base_time_utc",
     "base_time_bj",
     "org",
     "lead_hour",
@@ -115,15 +117,25 @@ def safe_name(value: str) -> str:
     return re.sub(r"[^0-9A-Za-z\u4e00-\u9fff_-]+", "_", value)
 
 
-def parse_time_bj(value: Any) -> tuple[str, str]:
+def parse_track_time(value: Any) -> tuple[str, str, str]:
+    """Convert the NMC track timestamp from UTC to both UTC and Beijing time.
+
+    NMC track points use UTC while the issue text shown on the website uses
+    Beijing time. Keeping both avoids the eight-hour ambiguity in exports.
+    """
     if not value:
-        return "", ""
+        return "", "", ""
     text = str(value)
     try:
-        dt = datetime.strptime(text, "%Y%m%d%H%M")
-        return text, dt.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+        dt_utc = datetime.strptime(text, "%Y%m%d%H%M").replace(tzinfo=timezone.utc)
+        dt_bj = dt_utc.astimezone(timezone(timedelta(hours=8)))
+        return (
+            text,
+            dt_bj.strftime("%Y%m%d%H%M"),
+            dt_utc.isoformat().replace("+00:00", "Z"),
+        )
     except ValueError:
-        return text, ""
+        return text, "", ""
 
 
 def list_typhoons(year: str) -> list[list[Any]]:
@@ -197,7 +209,7 @@ def normalize_track(typhoon: list[Any]) -> tuple[list[dict[str, Any]], list[dict
     forecast_rows: list[dict[str, Any]] = []
 
     for point in points:
-        time_bj, time_iso = parse_time_bj(point[1] if len(point) > 1 else "")
+        time_utc, time_bj, time_iso = parse_track_time(point[1] if len(point) > 1 else "")
         issue = point[12] if len(point) > 12 and isinstance(point[12], list) else []
         issue_time = issue[0] if len(issue) > 0 else ""
         issue_text = issue[1] if len(issue) > 1 else ""
@@ -207,6 +219,7 @@ def normalize_track(typhoon: list[Any]) -> tuple[list[dict[str, Any]], list[dict
             {
                 "typhoon_id": typhoon_id,
                 "point_id": point_id,
+                "time_utc": time_utc,
                 "time_bj": time_bj,
                 "time_iso": time_iso,
                 "grade": point[3] if len(point) > 3 else "",
@@ -229,6 +242,7 @@ def normalize_track(typhoon: list[Any]) -> tuple[list[dict[str, Any]], list[dict
                     {
                         "typhoon_id": typhoon_id,
                         "point_id": point_id,
+                        "base_time_utc": time_utc,
                         "base_time_bj": time_bj,
                         "org": org,
                         "lead_hour": forecast[0] if len(forecast) > 0 else "",
