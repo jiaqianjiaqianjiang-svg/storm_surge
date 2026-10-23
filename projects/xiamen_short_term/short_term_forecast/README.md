@@ -2,6 +2,8 @@
 
 正式实验统一使用 `src/xiamen_forecast/`。这个包名为兼容已有厦门命令而保留，内部流程现已支持 `xiamen`、`lianyungang` 和 `beihai`，没有为新站点复制第二套项目。`src/short_term_forecast/` 仅保留期刊绘图和公用指标。
 
+历史台风案例的筛选、人工确认和回算命令见 [HISTORICAL_TYPHOON_EVENTS.md](HISTORICAL_TYPHOON_EVENTS.md)。它复用现有权重与滚动预测，不重新训练；1997案例属于已查看全年结果后的追加历史分析，不能再称为新的盲测。
+
 ## 多站点配置与实验边界
 
 站点、经纬度、原始文件名、年份划分和独立输出目录集中定义在 `src/xiamen_forecast/station_config.py`：
