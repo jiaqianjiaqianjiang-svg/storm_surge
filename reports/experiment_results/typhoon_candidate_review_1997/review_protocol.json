@@ -1,0 +1,8 @@
+{
+  "track_sha256": "b624f948218e3accd3a4d6c20731ead065d08c000228e6366d0b6f3ef30ae4c6",
+  "candidate_csv": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\reports\\experiment_results\\typhoon_events_1997_seed42_compact\\candidate_events.csv",
+  "analysis_year": 1997,
+  "source": "read-only GESLA-derived surge and ERA5 inputs",
+  "attribution_status": "pending manual review, not automatically confirmed",
+  "notes": "Central 2x2 and full 40x40 means are grid proxies; map uses raw ERA5 coordinates. ACF/FFT do not establish residual tide."
+}
