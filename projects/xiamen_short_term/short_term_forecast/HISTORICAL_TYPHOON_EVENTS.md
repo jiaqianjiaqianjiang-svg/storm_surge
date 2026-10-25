@@ -48,6 +48,33 @@ Windows笔记本或无CUDA的机器把`--device cuda`改为`--device cpu`。运�
 
 精简结果经检查后，仅提交此目录，例如从仓库根目录运行 `git add -- reports/experiment_results/typhoon_events_1997_seed42`，先看 `git diff --cached --stat`；不要把`outputs/`、`models/`或原始最佳路径整文件提交到GitHub。
 
+## AMBER与VICTOR的下一轮核验（尚未确认归因）
+
+原有候选清单显示：厦门AMBER的最近路径时刻为1997-08-29 07:00 UTC，120小时窗口峰值72.44 cm发生于此前7小时；厦门CASS的窗口与AMBER重叠99小时，**两份清单记录的是同一个观测峰值**，不能直接称为AMBER造成。连云港VICTOR最近路径时刻为1997-08-04 06:00 UTC，窗口峰值72.69 cm发生于其后4小时。两项均仍为`pending`。
+
+实验室电脑先更新本分支，再在PowerShell运行只读核验。已有最佳路径文件必须与原筛选时使用的文件SHA-256一致；脚本不会修改原始数据或候选决定。
+
+```powershell
+conda activate jjq
+Set-Location -LiteralPath "H:\02_代码与模型\蒋佳倩_2026-2029_软件工程硕士\storm_surge"
+git pull origin codex/china-multistation
+Set-Location -LiteralPath "projects\xiamen_short_term\short_term_forecast"
+python -m src.xiamen_forecast.review_typhoon_candidates --track-csv "outputs\best_tracks\ibtracs.WP.list.v04r01.csv"
+```
+
+核验材料默认生成在仓库根目录`reports/experiment_results/typhoon_candidate_review_1997/`，每场包含逐小时增水/风矢量/气压CSV、最佳路径摘录、风场图、增水与气象过程图、去趋势ACF/频谱图。中央2×2与40×40风场统计仅是网格代理；需人工查阅区域风向、气压演变、最佳路径和原始潮位/潮汐分离质量。ACF或频谱中的周期性不能自行解释为残余潮汐。若归因不充分，继续保留`pending`；不要为了运行模型强行填`yes`。脚本拒绝覆盖已有核验目录，重新核验请指定新的`--output-dir`。
+
+**只有归因与数据核查通过后**，再建立与旧结果隔离的新回算包。`scan`会重新生成候选清单且所有候选为`pending`；只对审查通过的AMBER和/或VICTOR手工填写`review_note`并将`review_decision`改成`yes`，其他候选保持`pending`。特别是AMBER，必须说明与CASS共享观测峰值时能够支持何种程度的归因；若无法区分，暂不纳入正式单台风评价。
+
+```powershell
+$caseDir = "..\..\..\reports\experiment_results\typhoon_events_1997_amber_victor_seed42"
+python -m src.xiamen_forecast.run_typhoon_events scan --track-csv "outputs\best_tracks\ibtracs.WP.list.v04r01.csv" --stations xiamen lianyungang --results-dir $caseDir
+# 此处先人工核验并编辑 $caseDir\candidate_events.csv；未确认时不要执行下一行。
+python -m src.xiamen_forecast.run_typhoon_events run --track-csv "outputs\best_tracks\ibtracs.WP.list.v04r01.csv" --stations xiamen lianyungang --results-dir $caseDir --device cuda
+```
+
+同一事件的三次起报、全部模型、观测和未来ERA5强迫由现有回算程序统一处理，不重新训练。厦门主图比较CNN-GRU与原Rollout-6；连云港主图再加入WMSE→WMSE。Persistence与Ridge留在误差对照图和完整表，其他已训练损失组合保留为消融表格，不作为主图重点。输出包括每场`forecasts_72h.csv`、`event_metrics.csv`、`exact_lead_metrics.csv`和PNG；报告必须注明这是未来ERA5已知的历史回算、1997追加案例而非新盲测。
+
 ## 实时预报准备（尚未实现）
 
 仓库已有`tools/realtime_crawlers/gfs_nomads_downloader.py`、`nmc_typhoon_crawler.py`、`nmefc_storm_surge_crawler.py`及若干潮位源检索脚本。GFS下载程序当前默认只取0–24小时，尚未证实能稳定提供完整72小时逐小时、同化并裁剪到与ERA5一致的40×40 U10/V10/MSL输入。须建立GFS循环发布时间、有效时间、缺时次检测和插值/重采样记录，并在训练期之外验证GFS与ERA5变量、单位、网格和标准化差异。未来GFS不能被ERA5真值悄悄替换。

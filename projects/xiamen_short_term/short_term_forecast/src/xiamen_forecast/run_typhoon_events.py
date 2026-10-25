@@ -46,13 +46,13 @@ EXTRA_NAMES = {
 }
 COLORS = {
     "observed": MODEL_COLORS["observed"],
+    "persistence": MODEL_COLORS["persistence"],
     "ridge": MODEL_COLORS["ridge"],
     "cnn_gru": MODEL_COLORS["cnn_gru"],
     "cnn_gru_rollout6": MODEL_COLORS["cnn_gru_rollout6"],
-    "wmse_mse": "#748343",
-    "awmse_awmse": "#81628E",
+    "wmse_wmse": "#2C7C74",
 }
-MAIN_MODELS = ("cnn_gru", "cnn_gru_rollout6", "wmse_mse", "awmse_awmse")
+MAIN_MODELS = ("cnn_gru", "cnn_gru_rollout6", "wmse_wmse")
 
 
 def parser() -> argparse.ArgumentParser:
@@ -231,7 +231,7 @@ def summarise_exact_leads(metrics: pd.DataFrame) -> pd.DataFrame:
 
 def _plot_errors(metrics: pd.DataFrame, lead_metrics: pd.DataFrame, path: Path) -> None:
     setup_journal_style()
-    names = [name for name in ("ridge", *MAIN_MODELS) if name in metrics.model.unique()]
+    names = [name for name in ("persistence", "ridge", *MAIN_MODELS) if name in metrics.model.unique()]
     fig, axes = plt.subplots(1, 3, figsize=(10.4, 3.15), layout="constrained")
     fields = (
         ("lead_rmse_cm", "Exact-lead RMSE (cm)"),
