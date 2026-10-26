@@ -103,3 +103,24 @@ def test_missing_prepared_data_names_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(station_config, "MODULE_ROOT", tmp_path)
     with pytest.raises(FileNotFoundError, match="atmosphere.npy"):
         statistics.load_station_arrays(station)
+
+
+def test_partial_final_day_is_counted_as_missing_not_rejected(tmp_path, monkeypatch):
+    station = replace(get_station_config("xiamen"), data_start_year=1995, train_start_year=1995,
+                      train_end_year=1995, validation_year=1996, test_year=1997,
+                      input_steps=2, grid_size=1)
+    monkeypatch.setattr(station_config, "MODULE_ROOT", tmp_path)
+    root = station.dataset_dir
+    root.mkdir(parents=True)
+    times = pd.date_range("1995-01-01", "1997-12-31 15:00", freq="h")
+    surge = (0.1 + np.sin(np.arange(len(times)) / 7) * 0.05).astype("f4")
+    np.save(root / "time.npy", times.to_numpy(dtype="datetime64[ns]"))
+    np.save(root / "surge.npy", surge)
+    np.save(root / "atmosphere.npy", np.zeros((len(times), 3, 1, 1), dtype="f4"))
+    (root / "dataset_metadata.json").write_text(json.dumps({"station_id": "xiamen"}), encoding="utf-8")
+
+    loaded_times, loaded_surge, atmosphere_valid = statistics.load_station_arrays(station)
+    yearly, _, _ = statistics.station_extreme_tables(station, loaded_times, loaded_surge, atmosphere_valid)
+    test_year = yearly.loc[yearly.year.eq(1997)].iloc[0]
+    assert test_year.expected_hours - test_year.observed_hours == 8
+    assert test_year.missing_rate == pytest.approx(8 / 8760)

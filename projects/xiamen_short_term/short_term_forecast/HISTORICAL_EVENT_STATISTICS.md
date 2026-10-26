@@ -18,6 +18,8 @@ python -m src.xiamen_forecast.build_station_event_statistics --stations xiamen l
 
 前面四个检查都应返回 `True`。程序还会检查各站的 `surge.npy`、`atmosphere.npy`、站点元数据和配置年份端点；缺文件会列出路径后停止。运行中断后可直接重跑；只有完整成功后才会出现正式结果目录。已生成正式结果时默认拒绝覆盖，复查请指定新的 `--output-dir`。
 
+时间轴若缺少训练首年、训练末年、验证年或测试年会停止；若只是首尾少量小时，会给出警告，并按全年应有小时数计入逐年缺测率。例如厦门现有数据到1997年12月31日15:00 UTC，末尾8小时不会被误判为整站无效。
+
 结果位于仓库根目录的 `reports/experiment_results/china_three_station_event_distribution_v1/`。检查：
 
 ```powershell

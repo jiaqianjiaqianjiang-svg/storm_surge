@@ -110,8 +110,17 @@ def load_station_arrays(station: StationConfig) -> tuple[pd.DatetimeIndex, np.nd
     times = pd.DatetimeIndex(pd.to_datetime(raw_time))
     if times.hasnans or not times.is_monotonic_increasing or times.has_duplicates:
         raise ValueError(f"Time axis must be strictly increasing without NaT or duplicates: {root}")
-    if times[0] > pd.Timestamp(station.train_start_year, 1, 1) or times[-1] < pd.Timestamp(station.test_year, 12, 31, 23):
-        raise ValueError(f"Dataset does not cover configured train/test endpoints: {root}: {times[0]} to {times[-1]}")
+    required_years = {station.train_start_year, station.train_end_year,
+                      station.validation_year, station.test_year}
+    if not required_years.issubset(set(times.year)):
+        raise ValueError(f"Dataset lacks configured train/validation/test year(s) {sorted(required_years)}: {root}: {times[0]} to {times[-1]}")
+    expected_start = pd.Timestamp(station.train_start_year, 1, 1)
+    expected_end = pd.Timestamp(station.test_year, 12, 31, 23)
+    if times[0] > expected_start or times[-1] < expected_end:
+        warnings.warn(
+            f"Prepared timeline does not cover every configured endpoint hour: {root}: "
+            f"{times[0]} to {times[-1]}; absent hours will be counted in the yearly missing rate"
+        )
     surge = np.asarray(raw_surge, dtype=float)
     atmospheric_valid = np.zeros(len(times), dtype=bool)
     for start in range(0, len(times), 168):
