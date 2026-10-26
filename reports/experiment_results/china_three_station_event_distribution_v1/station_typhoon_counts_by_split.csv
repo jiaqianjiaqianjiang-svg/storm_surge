@@ -1,0 +1,10 @@
+﻿station,split,ibtracs_wp_storms,within_500km_candidates,data_complete_same_split_candidates,preliminary_manually_included,fully_attributed_confirmed,not_reviewed_candidates,attribution_unresolved_candidates,incomplete_or_cross_split,cross_split_window_candidates,track_cross_split_candidates
+xiamen,train,927,176,176,0,0,176,176,0,0,0
+xiamen,validation,43,4,4,0,0,4,4,0,0,0
+xiamen,test,33,3,3,1,0,2,3,0,0,0
+lianyungang,train,718,41,40,0,0,41,41,1,0,0
+lianyungang,validation,43,0,0,0,0,0,0,0,0,0
+lianyungang,test,33,2,2,2,0,0,2,0,0,0
+beihai,train,718,144,143,0,0,144,144,1,0,0
+beihai,validation,43,7,7,0,0,7,7,0,0,0
+beihai,test,33,3,3,1,0,2,3,0,0,0
