@@ -33,8 +33,11 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def read_ibtracs_wp(path: Path, year: int = 1997) -> pd.DataFrame:
+def read_ibtracs_wp(path: Path, year: int | tuple[int, int] = 1997) -> pd.DataFrame:
     """读取NOAA CSV，跳过官方文件的第二行单位说明。"""
+    start_year, end_year = (year, year) if isinstance(year, int) else year
+    if start_year > end_year:
+        raise ValueError("IBTrACS year range must be increasing")
     if not path.is_file():
         raise FileNotFoundError(f"IBTrACS best-track CSV not found: {path}")
     header = pd.read_csv(path, nrows=0).columns
@@ -51,7 +54,8 @@ def read_ibtracs_wp(path: Path, year: int = 1997) -> pd.DataFrame:
     ):
         chunk["time"] = pd.to_datetime(chunk["ISO_TIME"], utc=True, errors="coerce")
         chunk = chunk.loc[
-            (chunk.time.dt.year == year) & (chunk.BASIN.astype(str).str.strip() == "WP")
+            chunk.time.dt.year.between(start_year, end_year)
+            & (chunk.BASIN.astype(str).str.strip() == "WP")
         ].copy()
         if not chunk.empty:
             parts.append(chunk)

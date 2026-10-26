@@ -1,0 +1,5 @@
+﻿event_id,station,storm_name,storm_sid,event_label,window_start_utc,window_end_exclusive_utc,closest_time_utc,closest_distance_km,observed_event_peak_cm,observed_event_peak_time_utc,origin_count,origins_covering_event_peak,interpretation_limit
+beihai_1997232N17115,beihai,ZITA,1997232N17115,Beihai / ZITA,1997-08-19T11:00:00,1997-08-24T11:00:00,1997-08-22T11:00:00,46.58,78.10854911804199,1997-08-23T02:00:00,3,2,ZITA与CASS窗口重叠；不得把重叠时段全部归因于ZITA。
+lianyungang_1997217N06168,lianyungang,WINNIE,1997217N06168,Lianyungang / WINNIE,1997-08-16T23:00:00,1997-08-21T23:00:00,1997-08-19T23:00:00,137.5,144.32978630065918,1997-08-19T08:00:00,3,3,WINNIE部分模型在长提前量和主峰处明显失败，应保留失败案例。
+xiamen_1997232N14136,xiamen,AMBER,1997232N14136,Xiamen / AMBER,1997-08-26T07:00:00,1997-08-31T07:00:00,1997-08-29T07:00:00,219.98,72.44470715522766,1997-08-29T00:00:00,3,3,AMBER主峰后存在CASS影响，120小时过程不能单独归因于AMBER。
+lianyungang_1997210N15120,lianyungang,VICTOR,1997210N15120,Lianyungang / VICTOR,1997-08-01T06:00:00,1997-08-06T06:00:00,1997-08-04T06:00:00,335.65,72.69157767295837,1997-08-04T10:00:00,3,2,VICTOR增水有约12小时周期，不能直接判为残余潮汐或全部台风动力增水。
