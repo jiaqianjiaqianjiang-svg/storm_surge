@@ -1,0 +1,26 @@
+{
+  "best_track_source": "https://www.ncei.noaa.gov/products/international-best-track-archive",
+  "best_track_download": "https://www.ncei.noaa.gov/data/international-best-track-archive-for-climate-stewardship-ibtracs/v04r01/access/csv/ibtracs.WP.list.v04r01.csv",
+  "best_track_local_file": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\outputs\\best_tracks\\ibtracs.WP.list.v04r01.csv",
+  "best_track_sha256": "b624f948218e3accd3a4d6c20731ead065d08c000228e6366d0b6f3ef30ae4c6",
+  "year": 1997,
+  "seed": 42,
+  "stations": [
+    "xiamen",
+    "lianyungang"
+  ],
+  "initial_distance_km": 500,
+  "forecast_type": "historical hindcast with known future ERA5 reanalysis forcing",
+  "future_observed_surge_used_as_model_input": false,
+  "test_status": "1997 additional historical case analysis; not a new blind test",
+  "fixed_origin_offsets_hours": [
+    -72,
+    -48,
+    -24
+  ],
+  "fixed_horizons_hours": [
+    24,
+    48,
+    72
+  ]
+}

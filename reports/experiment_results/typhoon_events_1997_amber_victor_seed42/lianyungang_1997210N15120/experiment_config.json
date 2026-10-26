@@ -1,0 +1,47 @@
+{
+  "station": "lianyungang",
+  "storm_sid": "1997210N15120",
+  "t0_utc": "1997-08-04T06:00:00",
+  "closest_distance_km": 335.65,
+  "observed_peak_cm_in_120h_window": 72.69157767295837,
+  "origin_offsets_hours": [
+    -72,
+    -48,
+    -24
+  ],
+  "horizons_hours": [
+    24,
+    48,
+    72
+  ],
+  "ridge_path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\baselines\\ridge_pipeline.joblib",
+  "ridge_sha256": "9d154de2f042d50f09e06e14062a479d5fbf6d8a0f802239e777e60698d7bf60",
+  "neural_checkpoints": {
+    "cnn_gru": {
+      "path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\cnn_gru\\best_model.pth",
+      "sha256": "fc21f3f855bce06708b19f2cbe471593e07dd992009360b3a6b99c78d5da2bb8"
+    },
+    "cnn_gru_rollout6": {
+      "path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\cnn_gru_rollout6\\best_model.pth",
+      "sha256": "5ee13f16a1154fc9f6a0f4ff68ab0171f063c66ae574f8137332f1a933c5e003"
+    },
+    "wmse_mse": {
+      "path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\cnn_gru_extreme_wmse_rollout6_mse\\best_model.pth",
+      "sha256": "8111df816444021061b0ddd60d8474ca101f0f117db44df447cc08296a6da871"
+    },
+    "wmse_wmse": {
+      "path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\cnn_gru_extreme_wmse_rollout6_wmse\\best_model.pth",
+      "sha256": "4ce61d3ae71f0840e06280ebf607255e35929a2789e710d6cb3898105916bbf9"
+    },
+    "awmse_awmse": {
+      "path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\cnn_gru_extreme_awmse_rollout6_awmse\\best_model.pth",
+      "sha256": "ff858e9ec5b56f21edf1ccadecb2e9ee9c91d350b81c3ba99de366570083efbe"
+    },
+    "whuber_whuber": {
+      "path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\lianyungang\\formal_seed42\\cnn_gru_extreme_whuber_rollout6_whuber\\best_model.pth",
+      "sha256": "db70a1b5548c22460cfeac2e4278261817e306ba2802b90541011d7a03c67bab"
+    }
+  },
+  "known_future_era5": true,
+  "future_observed_surge_as_input": false
+}

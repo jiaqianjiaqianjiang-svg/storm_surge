@@ -1,0 +1,31 @@
+{
+  "station": "xiamen",
+  "storm_sid": "1997232N14136",
+  "t0_utc": "1997-08-29T07:00:00",
+  "closest_distance_km": 219.98,
+  "observed_peak_cm_in_120h_window": 72.44470715522766,
+  "origin_offsets_hours": [
+    -72,
+    -48,
+    -24
+  ],
+  "horizons_hours": [
+    24,
+    48,
+    72
+  ],
+  "ridge_path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\xiamen\\baselines\\ridge_pipeline.joblib",
+  "ridge_sha256": "e9d037a5a6528d022512102193de08189488054b3376b96f9073af6c50035c37",
+  "neural_checkpoints": {
+    "cnn_gru": {
+      "path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\xiamen\\formal_seed42\\cnn_gru\\best_model.pth",
+      "sha256": "6bf0f59bfe1ca49f5ef0c2d8fdaf9b11a8c1b4206c28a0e00523204153f558c1"
+    },
+    "cnn_gru_rollout6": {
+      "path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\xiamen\\formal_seed42\\cnn_gru_rollout6\\best_model.pth",
+      "sha256": "78989620ce52d08a543417fec41f76b7da4bfc88bab142efdbc5efce3524c139"
+    }
+  },
+  "known_future_era5": true,
+  "future_observed_surge_as_input": false
+}
