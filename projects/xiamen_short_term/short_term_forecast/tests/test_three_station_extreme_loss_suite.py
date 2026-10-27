@@ -103,6 +103,110 @@ def test_rollout_audit_checks_the_recorded_one_step_dependency(
     assert suite.inspect_rollout_artifact(station, scheme)["status"] == "configuration_mismatch"
 
 
+def test_one_step_audit_requires_extreme_config_only_for_weighted_loss(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    monkeypatch.setattr(station_config, "MODULE_ROOT", tmp_path)
+    station = station_config.get_station_config("xiamen")
+    config = {
+        "station": "xiamen", "model_type": "cnn_gru", "loss_type": "mse",
+        "validation_only": True, "seed": 42, "input_steps": 24,
+        "batch_size": 32, "epochs": 50, "patience": 8, "lr": 0.001,
+        "train_start_year": 1970, "train_end_year": 1995,
+        "validation_year": 1996,
+    }
+    root = suite.one_step_path(station, "mse")
+    for name in suite.ONE_STEP_REQUIRED_FILES:
+        _write(root / name)
+    _write(root / "training_config.json", json.dumps(config))
+    audit = suite.inspect_one_step_artifact(station, "mse")
+    assert audit["status"] == "compatible"
+    assert audit["missing_metadata"] == []
+    _write(root / "extreme_loss_config.json", json.dumps({"loss_type": "mse"}))
+    assert suite.inspect_one_step_artifact(station, "mse")["status"] == "compatible"
+
+    for field in ("loss_type", "validation_only"):
+        incomplete = {key: value for key, value in config.items() if key != field}
+        _write(root / "training_config.json", json.dumps(incomplete))
+        audit = suite.inspect_one_step_artifact(station, "mse")
+        assert audit["status"] == "legacy_metadata"
+        assert audit["missing_metadata"] == [field]
+    _write(root / "training_config.json", json.dumps(config))
+
+    weighted_root = suite.one_step_path(station, "wmse")
+    for name in suite.ONE_STEP_REQUIRED_FILES:
+        _write(weighted_root / name)
+    _write(weighted_root / "training_config.json", json.dumps({**config, "loss_type": "wmse"}))
+    audit = suite.inspect_one_step_artifact(station, "wmse")
+    assert audit["status"] == "configuration_invalid"
+    assert "missing extreme_loss_config.json" in audit["mismatches"]
+    _write(weighted_root / "extreme_loss_config.json", json.dumps({"loss_type": "wmse"}))
+    audit = suite.inspect_one_step_artifact(station, "wmse")
+    assert audit["status"] == "legacy_metadata"
+    assert set(audit["missing_metadata"]) == {
+        "loss.alpha", "loss.beta", "loss.huber_delta_cm",
+    }
+    _write(weighted_root / "extreme_loss_config.json", json.dumps(_loss_config("awmse")))
+    audit = suite.inspect_one_step_artifact(station, "wmse")
+    assert audit["status"] == "configuration_mismatch"
+    assert any("loss.loss_type" in item for item in audit["mismatches"])
+
+
+def test_rollout_audit_requires_extreme_config_only_for_weighted_loss(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    monkeypatch.setattr(station_config, "MODULE_ROOT", tmp_path)
+    station = station_config.get_station_config("lianyungang")
+    mse_scheme = next(item for item in LOSS_SCHEMES if item.scheme_id == "mse/mse")
+    metadata = {
+        "station": "lianyungang", "training_years": [1975, 1995],
+        "validation_year": 1996, "test_year_loaded": False,
+        "base_model_type": "cnn_gru", "base_experiment": mse_scheme.one_step_directory,
+        "base_checkpoint": str(suite.one_step_path(station, "mse") / "best_model.pth"),
+        "rollout_steps": 6, "teacher_forcing_epochs": 5, "seed": 42,
+        "epochs": 20, "patience": 5, "batch_size": 256,
+        "embedding_batch_size": 1024, "learning_rate": 0.0001,
+    }
+    root = suite.rollout_path(station, mse_scheme)
+    for name in suite.ROLLOUT_REQUIRED_FILES:
+        _write(root / name)
+    _write(root / "training_metadata.json", json.dumps(metadata))
+    audit = suite.inspect_rollout_artifact(station, mse_scheme)
+    assert audit["status"] == "compatible"
+    assert audit["missing_metadata"] == []
+    _write(root / "extreme_loss_config.json", json.dumps({"loss_type": "mse"}))
+    assert suite.inspect_rollout_artifact(station, mse_scheme)["status"] == "compatible"
+
+    _write(root / "training_metadata.json", json.dumps({key: value for key, value in metadata.items() if key != "test_year_loaded"}))
+    audit = suite.inspect_rollout_artifact(station, mse_scheme)
+    assert audit["status"] == "legacy_metadata"
+    assert audit["missing_metadata"] == ["test_year_loaded"]
+
+    weighted_scheme = next(item for item in LOSS_SCHEMES if item.scheme_id == "wmse/wmse")
+    weighted_root = suite.rollout_path(station, weighted_scheme)
+    for name in suite.ROLLOUT_REQUIRED_FILES:
+        _write(weighted_root / name)
+    weighted_metadata = {
+        **metadata,
+        "base_experiment": weighted_scheme.one_step_directory,
+        "base_checkpoint": str(suite.one_step_path(station, "wmse") / "best_model.pth"),
+    }
+    _write(weighted_root / "training_metadata.json", json.dumps(weighted_metadata))
+    audit = suite.inspect_rollout_artifact(station, weighted_scheme)
+    assert audit["status"] == "configuration_invalid"
+    assert "missing extreme_loss_config.json" in audit["mismatches"]
+    _write(weighted_root / "extreme_loss_config.json", json.dumps({"loss_type": "wmse"}))
+    audit = suite.inspect_rollout_artifact(station, weighted_scheme)
+    assert audit["status"] == "legacy_metadata"
+    assert set(audit["missing_metadata"]) == {
+        "loss.alpha", "loss.beta", "loss.huber_delta_cm",
+    }
+    _write(weighted_root / "extreme_loss_config.json", json.dumps(_loss_config("awmse")))
+    audit = suite.inspect_rollout_artifact(station, weighted_scheme)
+    assert audit["status"] == "configuration_mismatch"
+    assert any("loss.loss_type" in item for item in audit["mismatches"])
+
+
 def test_generated_training_commands_are_explicit_and_dependency_matched(
     tmp_path: Path, monkeypatch,
 ) -> None:

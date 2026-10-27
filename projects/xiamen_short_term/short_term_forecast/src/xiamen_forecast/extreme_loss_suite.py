@@ -142,8 +142,11 @@ def inspect_one_step_artifact(
             "missing_metadata": [],
         }
     config, error = _read_json(root / "training_config.json")
-    loss_config, loss_error = _read_json(root / "extreme_loss_config.json")
-    if error or (loss_error and loss_type != "mse"):
+    loss_path = root / "extreme_loss_config.json"
+    loss_config, loss_error = (
+        _read_json(loss_path) if loss_type != "mse" or loss_path.exists() else (None, None)
+    )
+    if error or loss_error:
         return {
             "status": "configuration_invalid",
             "path": str(root),
@@ -167,17 +170,16 @@ def inspect_one_step_artifact(
         "validation_year": station.validation_year,
     }
     mismatches, missing_metadata = _compare_fields(config or {}, expected)
-    loss_mismatches, loss_missing = _compare_fields(
-        loss_config or {},
-        {
-            "loss_type": loss_type,
-            "alpha": EXTREME_ALPHA,
-            "beta": EXTREME_BETA,
-            "huber_delta_cm": HUBER_DELTA_CM,
-        },
-    )
-    mismatches.extend(f"loss.{item}" for item in loss_mismatches)
-    missing_metadata.extend(f"loss.{item}" for item in loss_missing)
+    if loss_config is not None:
+        expected_loss = {"loss_type": loss_type}
+        if loss_type != "mse":
+            expected_loss.update(
+                alpha=EXTREME_ALPHA, beta=EXTREME_BETA,
+                huber_delta_cm=HUBER_DELTA_CM,
+            )
+        loss_mismatches, loss_missing = _compare_fields(loss_config, expected_loss)
+        mismatches.extend(f"loss.{item}" for item in loss_mismatches)
+        missing_metadata.extend(f"loss.{item}" for item in loss_missing)
     status = "compatible"
     if mismatches:
         status = "configuration_mismatch"
@@ -210,8 +212,13 @@ def inspect_rollout_artifact(
             "missing_metadata": [],
         }
     metadata, error = _read_json(root / "training_metadata.json")
-    loss_config, loss_error = _read_json(root / "extreme_loss_config.json")
-    if error or (loss_error and scheme.rollout_loss != "mse"):
+    loss_path = root / "extreme_loss_config.json"
+    loss_config, loss_error = (
+        _read_json(loss_path)
+        if scheme.rollout_loss != "mse" or loss_path.exists()
+        else (None, None)
+    )
+    if error or loss_error:
         return {
             "status": "configuration_invalid",
             "path": str(root),
@@ -236,17 +243,16 @@ def inspect_rollout_artifact(
         "learning_rate": ROLLOUT_LEARNING_RATE,
     }
     mismatches, missing_metadata = _compare_fields(metadata or {}, expected)
-    loss_mismatches, loss_missing = _compare_fields(
-        loss_config or {},
-        {
-            "loss_type": scheme.rollout_loss,
-            "alpha": EXTREME_ALPHA,
-            "beta": EXTREME_BETA,
-            "huber_delta_cm": HUBER_DELTA_CM,
-        },
-    )
-    mismatches.extend(f"loss.{item}" for item in loss_mismatches)
-    missing_metadata.extend(f"loss.{item}" for item in loss_missing)
+    if loss_config is not None:
+        expected_loss = {"loss_type": scheme.rollout_loss}
+        if scheme.rollout_loss != "mse":
+            expected_loss.update(
+                alpha=EXTREME_ALPHA, beta=EXTREME_BETA,
+                huber_delta_cm=HUBER_DELTA_CM,
+            )
+        loss_mismatches, loss_missing = _compare_fields(loss_config, expected_loss)
+        mismatches.extend(f"loss.{item}" for item in loss_mismatches)
+        missing_metadata.extend(f"loss.{item}" for item in loss_missing)
     expected_base = one_step_path(station, scheme.one_step_loss, seed) / "best_model.pth"
     recorded_base = Path(str((metadata or {}).get("base_checkpoint", "")))
     if not recorded_base.name:
