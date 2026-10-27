@@ -1,6 +1,6 @@
 # 中国沿海多站点小时级短时风暴增水预测
 
-正式实验统一使用 `src/xiamen_forecast/`。这个包名为兼容已有厦门命令而保留，已完成 `xiamen`、`lianyungang`、`beihai` 三站实验，没有为新站点复制第二套项目。汕尾支持采用实验室源数据审计后生成的本机配置，当前仅完成入口和测试，尚无汕尾真实训练结果；按 [SHANWEI_WORKFLOW.md](SHANWEI_WORKFLOW.md) 操作。`src/short_term_forecast/` 仅保留期刊绘图和公用指标。
+正式实验统一使用 `src/xiamen_forecast/`。这个包名为兼容已有厦门命令而保留，已完成 `xiamen`、`lianyungang`、`beihai` 三站实验，没有为新站点复制第二套项目。三站CNN-GRU极值损失统一补充实验按 [THREE_STATION_EXTREME_LOSS_SUITE.md](THREE_STATION_EXTREME_LOSS_SUITE.md) 执行；它会先审计被Git忽略的实验室权重，只补缺项且不覆盖配置冲突目录。汕尾支持采用实验室源数据审计后生成的本机配置，当前仅完成入口和测试，尚无汕尾真实训练结果；按 [SHANWEI_WORKFLOW.md](SHANWEI_WORKFLOW.md) 操作。`src/short_term_forecast/` 仅保留期刊绘图和公用指标。
 
 历史台风案例的筛选、人工确认和回算命令见 [HISTORICAL_TYPHOON_EVENTS.md](HISTORICAL_TYPHOON_EVENTS.md)。它复用现有权重与滚动预测，不重新训练；1997案例属于已查看全年结果后的追加历史分析，不能再称为新的盲测。
 

@@ -22,7 +22,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 try:
-    from .evaluate import calculate_metrics, calculate_positive_extreme_metrics
+    from .evaluate import (
+        calculate_detailed_metrics,
+        calculate_metrics,
+        calculate_positive_extreme_metrics,
+    )
     from .evaluate_baselines import summarise_atmosphere
     from .forecast_model import model_from_checkpoint
     from .station_config import (
@@ -33,7 +37,7 @@ try:
     )
     from .train_xiamen import load_prepared
 except ImportError:
-    from evaluate import calculate_metrics, calculate_positive_extreme_metrics
+    from evaluate import calculate_detailed_metrics, calculate_metrics, calculate_positive_extreme_metrics
     from evaluate_baselines import summarise_atmosphere
     from forecast_model import model_from_checkpoint
     from station_config import STATIONS, apply_station_defaults, validate_dataset_identity, validate_output_location
@@ -375,6 +379,7 @@ def build_metrics(
     surge: np.ndarray,
     origins: np.ndarray,
     predictions: dict[str, np.ndarray],
+    times: pd.DatetimeIndex | None = None,
     leads: tuple[int, ...] = LEADS,
 ) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
@@ -401,6 +406,14 @@ def build_metrics(
             positive_extremes = calculate_positive_extreme_metrics(
                 observed, predicted
             )
+            positive_peaks: dict[str, Any] = {}
+            if times is not None:
+                detailed = calculate_detailed_metrics(
+                    observed,
+                    predicted,
+                    pd.DatetimeIndex(times[targets]),
+                )
+                positive_peaks = detailed["positive_peak_events"]
             positive_columns: dict[str, Any] = {}
             for percentile in (90, 95, 99):
                 details = positive_extremes[f"positive_extreme_p{percentile}"]
@@ -436,6 +449,21 @@ def build_metrics(
                     "rapid_rise_n": int(rapid["n"]),
                     "rapid_rise_threshold_cm_per_hour": rise_threshold * 100,
                     "rapid_rise_rmse_cm": rapid["rmse_cm"],
+                    "positive_event_count": int(
+                        positive_peaks.get("event_count", 0)
+                    ),
+                    "positive_event_peak_rmse_cm": positive_peaks.get(
+                        "peak_height_rmse_cm", np.nan
+                    ),
+                    "positive_event_peak_bias_cm": positive_peaks.get(
+                        "mean_peak_height_bias_cm", np.nan
+                    ),
+                    "positive_event_timing_mae_hours": positive_peaks.get(
+                        "mean_absolute_timing_error_hours", np.nan
+                    ),
+                    "positive_event_underestimation_ratio": positive_peaks.get(
+                        "underestimation_ratio", np.nan
+                    ),
                     **positive_columns,
                 }
             )
@@ -604,7 +632,7 @@ def write_report(
 
 ## 输出说明
 
-    - `rolling_metrics_long.csv`：RMSE、MAE、Bias、Pearson r、R²、同提前量岭回归技能评分、绝对增水Top 5% RMSE、正向P90/P95/P99指标和快速上涨RMSE。
+- `rolling_metrics_long.csv`：RMSE、MAE、Bias、Pearson r、R²、同提前量岭回归技能评分、绝对增水Top 5% RMSE、正向P90/P95/P99指标、独立正向峰值的峰高/峰时指标和快速上涨RMSE。
 - `rolling_predictions_selected_leads.csv`：所有共同起报时刻在7个指定提前量的观测与预测。
 - `rmse_vs_lead.png`：RMSE随提前量变化。
 - `strong_event_*.png`：典型强增水过程的72小时曲线。
@@ -696,7 +724,7 @@ def main() -> None:
         args.batch_size,
         device,
     )
-    metrics = build_metrics(surge, origins, predictions)
+    metrics = build_metrics(surge, origins, predictions, times)
     metrics.to_csv(output / "rolling_metrics_long.csv", index=False)
     rmse = metrics.pivot(index="lead_hours", columns="model", values="rmse_cm").reset_index()
     rmse.insert(1, "valid_samples", len(origins))
