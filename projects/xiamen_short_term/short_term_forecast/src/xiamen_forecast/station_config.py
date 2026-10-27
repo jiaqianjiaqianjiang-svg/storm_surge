@@ -9,6 +9,7 @@ from typing import Any
 
 
 MODULE_ROOT = Path(__file__).resolve().parents[2]
+SHANWEI_CONFIG = MODULE_ROOT / "outputs" / "station_configs" / "shanwei.json"
 
 
 @dataclass(frozen=True)
@@ -136,6 +137,30 @@ def get_station_config(station: str) -> StationConfig:
     key = station.strip().lower().replace("-", "_").replace(" ", "_")
     aliases = {"lian_yun_gang": "lianyungang", "bei_hai": "beihai"}
     key = aliases.get(key, key)
+    if key == "shanwei":
+        if not SHANWEI_CONFIG.is_file():
+            raise FileNotFoundError(
+                f"Shanwei source audit/configuration is missing: {SHANWEI_CONFIG}. "
+                "Run audit_station_sources configure on the laboratory computer first."
+            )
+        data = json.loads(SHANWEI_CONFIG.read_text(encoding="utf-8"))
+        if data.get("station_id") != "shanwei" or data.get("source_audit_status") != "passed":
+            raise ValueError(f"Shanwei configuration lacks a passed source audit: {SHANWEI_CONFIG}")
+        return StationConfig(
+            station_id="shanwei",
+            name="Shanwei",
+            latitude=float(data["latitude"]),
+            longitude=float(data["longitude"]),
+            gesla_file=Path(data["gesla_file"]),
+            era5_dir=Path(data["era5_dir"]),
+            era5_filenames=dict(data["era5_filenames"]),
+            data_start_year=int(data["data_start_year"]),
+            data_end_year=int(data["data_end_year"]),
+            train_start_year=int(data["train_start_year"]),
+            train_end_year=1995,
+            validation_year=1996,
+            test_year=1997,
+        )
     if key not in STATIONS:
         raise ValueError(
             f"Unknown station '{station}'. Available stations: {', '.join(STATIONS)}"

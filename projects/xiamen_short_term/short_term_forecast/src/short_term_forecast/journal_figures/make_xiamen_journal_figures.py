@@ -738,7 +738,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--project-root", type=Path, default=PROJECT_ROOT)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--result-package", type=Path)
-    parser.add_argument("--station", choices=tuple(STATIONS), default="xiamen")
+    parser.add_argument("--station", choices=(*STATIONS, "shanwei"), default="xiamen")
     parser.add_argument("--validation-year", type=int)
     parser.add_argument("--split", choices=("validation", "test"))
     parser.add_argument("--seed", type=int, default=42)

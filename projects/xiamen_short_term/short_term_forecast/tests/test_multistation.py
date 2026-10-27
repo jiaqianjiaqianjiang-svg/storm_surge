@@ -393,6 +393,18 @@ def test_synthetic_audit_reports_split_samples_and_72h_origins(
     assert report["common_72h_origins"]["validation"] > 0
     assert report["common_72h_origins"]["test"] > 0
     assert report["variables"][2]["expected_unit"] == "Pa"
+    atmosphere[-8:] = np.nan
+    np.save(dataset / "atmosphere.npy", atmosphere)
+    preparation = json.loads((output / "preparation_report.json").read_text(encoding="utf-8"))
+    preparation["missing_era5_times"] = 8
+    (output / "preparation_report.json").write_text(json.dumps(preparation), encoding="utf-8")
+    with_small_gap = audit_dataset(
+        dataset, station_id="lianyungang", train_start_year=1995,
+        train_end_year=1995, validation_year=1996, test_year=1997,
+        expected_grid_size=2,
+    )
+    assert with_small_gap["status"] == "passed"
+    assert "8 unmatched ERA5 hours" in with_small_gap["notes"][0]
 
 
 def test_final_test_commands_propagate_station_to_every_entrypoint(

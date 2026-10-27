@@ -64,7 +64,7 @@ def parser() -> argparse.ArgumentParser:
         command.add_argument("--results-dir", type=Path, default=DEFAULT_OUTPUT)
         command.add_argument("--year", type=int, default=1997)
         command.add_argument("--seed", type=int, default=42)
-        command.add_argument("--stations", nargs="+", choices=tuple(STATIONS), default=list(STATIONS))
+        command.add_argument("--stations", nargs="+", choices=(*STATIONS, "shanwei"), default=list(STATIONS))
         if action == "scan":
             command.add_argument("--max-distance-km", type=float, default=500)
         else:

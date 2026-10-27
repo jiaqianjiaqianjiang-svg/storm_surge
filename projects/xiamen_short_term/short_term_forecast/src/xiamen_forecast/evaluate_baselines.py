@@ -71,6 +71,7 @@ def evaluate_baselines(
     test_year: int = 1997,
     ridge_alpha: float = 10.0,
     include_test: bool = True,
+    existing_ridge: str | Path | None = None,
 ) -> dict[str, Any]:
     atmosphere, surge, times = load_prepared(
         Path(dataset_path),
@@ -114,16 +115,20 @@ def evaluate_baselines(
         observed[split_name] = np.asarray(
             surge[dataset.targets], dtype=np.float32
         )
-    ridge = Pipeline(
-        [
-            ("standardise", StandardScaler()),
-            ("ridge", Ridge(alpha=ridge_alpha)),
-        ]
-    )
-    ridge.fit(features["train"], observed["train"])
+    if existing_ridge is None:
+        ridge = Pipeline(
+            [
+                ("standardise", StandardScaler()),
+                ("ridge", Ridge(alpha=ridge_alpha)),
+            ]
+        )
+        ridge.fit(features["train"], observed["train"])
+    else:
+        ridge = joblib.load(existing_ridge)
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
-    joblib.dump(ridge, destination / "ridge_pipeline.joblib")
+    if existing_ridge is None:
+        joblib.dump(ridge, destination / "ridge_pipeline.joblib")
 
     report: dict[str, Any] = {
         "split": split_report,
@@ -171,7 +176,7 @@ def evaluate_baselines(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--station", choices=tuple(STATIONS), default="xiamen")
+    parser.add_argument("--station", choices=(*STATIONS, "shanwei"), default="xiamen")
     parser.add_argument("--dataset-path", type=Path)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--input-steps", type=int, default=24)
@@ -180,6 +185,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--validation-year", type=int)
     parser.add_argument("--test-year", type=int)
     parser.add_argument("--ridge-alpha", type=float, default=10.0)
+    parser.add_argument("--existing-ridge", type=Path, help="Evaluate a saved Ridge model without refitting it")
     parser.add_argument(
         "--validation-only",
         action="store_true",
@@ -212,5 +218,6 @@ if __name__ == "__main__":
         arguments.validation_year, arguments.test_year,
         arguments.ridge_alpha,
         not arguments.validation_only,
+        arguments.existing_ridge,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))

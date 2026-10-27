@@ -24,12 +24,13 @@ FORMAL_MODELS = (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--station", choices=tuple(STATIONS), default="xiamen")
+    parser.add_argument("--station", choices=(*STATIONS, "shanwei"), default="xiamen")
     parser.add_argument("--year", type=int)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="cuda")
     parser.add_argument("--language", choices=("en", "zh"), default="en")
     parser.add_argument("--rollout-checkpoint", type=Path)
+    parser.add_argument("--profile", choices=("full", "core"), default="full")
     return parser.parse_args()
 
 
@@ -40,17 +41,23 @@ def build_commands(
     language: str,
     rollout_checkpoint: Path,
     station: str = "xiamen",
+    profile: str = "full",
 ) -> list[list[str]]:
+    if profile not in {"full", "core"}:
+        raise ValueError(f"Unknown model profile: {profile}")
+    models = FORMAL_MODELS if profile == "full" else ("cnn_gru",)
     python = sys.executable
     common_year = str(year)
+    baseline_command = [
+        python, "-m", "src.xiamen_forecast.evaluate_baselines", "--station", station,
+    ]
+    if profile == "core":
+        baseline_command.extend([
+            "--existing-ridge",
+            str(get_station_config(station).model_root / "baselines" / "ridge_pipeline.joblib"),
+        ])
     return [
-        [
-            python,
-            "-m",
-            "src.xiamen_forecast.evaluate_baselines",
-            "--station",
-            station,
-        ],
+        baseline_command,
         [
             python,
             "-m",
@@ -60,7 +67,7 @@ def build_commands(
             "--split",
             "test",
             "--models",
-            *FORMAL_MODELS,
+            *models,
             "--seed",
             str(seed),
             "--year",
@@ -86,7 +93,7 @@ def build_commands(
             "--station",
             station,
             "--models",
-            *FORMAL_MODELS,
+            *models,
             "--evaluation-year",
             common_year,
             "--split",
@@ -150,7 +157,8 @@ def main() -> None:
         raise FileNotFoundError(f"Rollout checkpoint not found: {checkpoint}")
 
     commands = build_commands(
-        year, args.seed, args.device, args.language, checkpoint, station.station_id
+        year, args.seed, args.device, args.language, checkpoint, station.station_id,
+        args.profile,
     )
     for index, command in enumerate(commands, start=1):
         print(f"[{index}/{len(commands)}] {' '.join(command)}", flush=True)

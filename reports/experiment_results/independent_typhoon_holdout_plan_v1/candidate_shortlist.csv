@@ -1,0 +1,7 @@
+event_id,station,storm_name,storm_sid,split,year,window_start_utc,window_end_exclusive_utc,closest_distance_km,max_observed_surge_cm_120h,data_complete_same_split,input_evaluation_cross_split,review_decision,review_note
+xiamen_1986252N06153,xiamen,ABBY,1986252N06153,train,1986,1986-09-16T12:00:00,1986-09-21T12:00:00,287.82,148.67959022521973,True,False,pending,
+xiamen_1987288N13168,xiamen,LYNN,1987288N13168,train,1987,1987-10-23T12:00:00,1987-10-28T12:00:00,340.85,168.6551809310913,True,False,pending,
+lianyungang_1977243N05156,lianyungang,BABE,1977243N05156,train,1977,1977-09-08T07:00:00,1977-09-13T07:00:00,374.23,187.2967839241028,True,False,pending,
+lianyungang_1992237N14144,lianyungang,POLLY,1992237N14144,train,1992,1992-08-29T10:00:00,1992-09-03T10:00:00,19.12,155.13193607330322,True,False,pending,
+beihai_1992188N07156,beihai,ELI,1992188N07156,train,1992,1992-07-10T10:00:00,1992-07-15T10:00:00,156.38,111.55520677566528,True,False,pending,
+beihai_1991187N06139,beihai,ZEKE,1991187N06139,train,1991,1991-07-10T13:00:00,1991-07-15T13:00:00,167.78,111.63235902786256,True,False,pending,

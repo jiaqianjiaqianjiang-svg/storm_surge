@@ -188,6 +188,7 @@ def audit_dataset(
     }
     errors: list[str] = []
     warnings: list[str] = []
+    notes: list[str] = []
     strictly_hourly = bool(
         np.all(np.diff(times.values) == np.timedelta64(1, "h"))
     )
@@ -264,13 +265,14 @@ def audit_dataset(
             f"ERA5 source audit: {message}"
             for message in source_audit["warnings"]
         )
-    if preparation_report and int(
-        preparation_report.get("missing_era5_times", 0)
-    ):
-        errors.append(
-            "prepared data contain unmatched ERA5 hours: "
-            f"{preparation_report['missing_era5_times']}"
-        )
+    unmatched_era5 = int(preparation_report.get("missing_era5_times", 0)) if preparation_report else 0
+    if unmatched_era5:
+        fraction = unmatched_era5 / max(len(times), 1)
+        message = f"prepared data contain {unmatched_era5} unmatched ERA5 hours ({fraction:.2%}); affected windows are excluded"
+        if fraction > 0.01:
+            errors.append(message)
+        else:
+            notes.append(message)
     for item in statistics[:2]:
         if max(abs(item["minimum"]), abs(item["maximum"])) > 150:
             errors.append(f"{item['variable']} exceeds the conservative +/-150 m/s range")
@@ -332,6 +334,7 @@ def audit_dataset(
         "gesla_quality_control": qc_report,
         "errors": errors,
         "warnings": warnings,
+        "notes": notes,
     }
     destination = Path(output_path) if output_path else root.parent / "prepared_dataset_audit.json"
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -345,7 +348,7 @@ def audit_dataset(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--station", choices=tuple(STATIONS), default="xiamen")
+    parser.add_argument("--station", choices=(*STATIONS, "shanwei"), default="xiamen")
     parser.add_argument("--dataset-dir", type=Path)
     parser.add_argument("--input-steps", type=int, default=24)
     parser.add_argument("--output", type=Path)

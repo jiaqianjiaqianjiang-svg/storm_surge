@@ -31,7 +31,7 @@ EXPERIMENTS = (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--station", choices=tuple(STATIONS), default="lianyungang")
+    parser.add_argument("--station", choices=(*STATIONS, "shanwei"), default="lianyungang")
     parser.add_argument("--validation-year", type=int)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--model-root", type=Path)

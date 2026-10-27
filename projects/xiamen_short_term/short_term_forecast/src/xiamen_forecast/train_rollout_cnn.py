@@ -34,7 +34,7 @@ MODULE_ROOT = Path(__file__).resolve().parents[2]
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--station", choices=tuple(STATIONS), default="xiamen")
+    parser.add_argument("--station", choices=(*STATIONS, "shanwei"), default="xiamen")
     parser.add_argument("--train-start-year", type=int)
     parser.add_argument("--train-end-year", type=int)
     parser.add_argument("--validation-year", type=int)

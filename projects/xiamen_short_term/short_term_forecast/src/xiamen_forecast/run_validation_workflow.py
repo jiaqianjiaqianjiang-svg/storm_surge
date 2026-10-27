@@ -25,13 +25,14 @@ class WorkflowStep:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--station", choices=tuple(STATIONS), required=True)
+    parser.add_argument("--station", choices=(*STATIONS, "shanwei"), required=True)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="cuda")
     parser.add_argument("--language", choices=("en", "zh"), default="en")
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--patience", type=int, default=8)
     parser.add_argument("--num-workers", type=int, default=0)
+    parser.add_argument("--profile", choices=("full", "core"), default="full")
     parser.add_argument(
         "--force",
         action="store_true",
@@ -92,7 +93,10 @@ def build_validation_steps(
     epochs: int = 50,
     patience: int = 8,
     num_workers: int = 0,
+    profile: str = "full",
 ) -> list[WorkflowStep]:
+    if profile not in {"full", "core"}:
+        raise ValueError(f"Unknown model profile: {profile}")
     station = get_station_config(station_id)
     python = sys.executable
     validation_year = str(station.validation_year)
@@ -141,6 +145,8 @@ def build_validation_steps(
         "tcn": 32,
         "transformer": 32,
     }
+    if profile == "core":
+        model_batches = {"cnn_gru": model_batches["cnn_gru"]}
     for model, batch_size in model_batches.items():
         steps.append(
             WorkflowStep(
@@ -232,13 +238,7 @@ def build_validation_steps(
                     "--split",
                     "validation",
                     "--models",
-                    "surge_mlp",
-                    "era5_cnn",
-                    "cnn",
-                    "cnn_lstm",
-                    "cnn_gru",
-                    "tcn",
-                    "transformer",
+                    *model_batches,
                     "--device",
                     device,
                     "--seed",
@@ -304,6 +304,7 @@ def main() -> None:
         epochs=args.epochs,
         patience=args.patience,
         num_workers=args.num_workers,
+        profile=args.profile,
     )
     print(
         f"Audit passed. Starting {station.name} {station.validation_year} "

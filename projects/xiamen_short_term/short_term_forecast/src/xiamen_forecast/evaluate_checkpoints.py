@@ -32,7 +32,7 @@ EVALUATION_MODELS = tuple(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--station", choices=tuple(STATIONS), default="xiamen")
+    parser.add_argument("--station", choices=(*STATIONS, "shanwei"), default="xiamen")
     parser.add_argument("--split", choices=("validation", "test"), required=True)
     parser.add_argument(
         "--models",

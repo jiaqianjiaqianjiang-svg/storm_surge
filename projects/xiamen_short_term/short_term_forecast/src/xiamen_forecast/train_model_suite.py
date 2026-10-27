@@ -23,7 +23,7 @@ DEFAULT_BATCH_SIZES = {
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--station", choices=tuple(STATIONS), default="xiamen")
+    parser.add_argument("--station", choices=(*STATIONS, "shanwei"), default="xiamen")
     parser.add_argument("--models", nargs="+", choices=FORMAL_MODELS, default=FORMAL_MODELS)
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--patience", type=int, default=8)
