@@ -1,72 +1,97 @@
-# Storm Surge 工作区索引
+# 中国沿海小时级短期风暴增水预测
 
-本仓库按“研究项目、参考资料、工具、报告、归档”分类。厦门短时预报已经统一到正式 v2 入口，Prickly Bay 已完成与厦门 CNN-GRU/rollout-6 核心模型的对齐评价，确认被替代的重复训练代码已清理。
+本仓库当前主线是中国沿海多站点小时级短期风暴增水预测。研究使用验潮站观测和 ERA5 大气再分析资料，建立统一的 CNN-GRU、Rollout-6、基线模型和极值损失实验流程，评价未来 1—72 小时增水变化、强增水和历史台风过程。
 
-第一次接触本项目，请先阅读 [`PROJECT_GUIDE_CN.md`](PROJECT_GUIDE_CN.md)。其中集中说明了研究目标、数据年份、电脑与代码位置、模型结构、运行流程、厦门和加勒比实验结果，以及当前已完成和未完成的工作。
+- 当前工作分支：`codex/china-multistation`
+- 详细说明：[`PROJECT_GUIDE_CN.md`](PROJECT_GUIDE_CN.md)
 
-## 主要项目
+## 当前研究范围
 
-### 1. 厦门论文复现
+| 站点 | 训练期 | 验证期 | 测试期 | 当前状态 |
+|---|---|---|---|---|
+| 厦门 Xiamen | 1970—1995 | 1996 | 1997 | 核心模型、72 h 滚动、极值损失和台风案例已完成 |
+| 连云港 Lianyungang | 1975—1995 | 1996 | 1997 | 核心模型、72 h 滚动、极值损失和台风案例已完成 |
+| 北海 Beihai | 1975—1995 | 1996 | 1997 | 核心模型、72 h 滚动、极值损失和台风案例已完成 |
+| 汕尾 Shanwei | 由真实资料共同覆盖决定 | 计划保留 1996 | 计划保留 1997 | 统一流程已接入，等待实验室源数据审计和真实运行 |
 
-位置：`projects/xiamen_reconstruction/`
+统一输入为过去 24 小时 U10、V10、MSL 空间场及过去 24 小时非潮增水；主要评价 1、3、6、12、24、48、72 小时预测。
 
-- `git_baseline/`：原来位于仓库根目录、已经被 Git 跟踪的 Python 复现版本。
-- `later_working_materials/`：原来的 `code_my/`，包括后续整理版代码和实际运行过的 notebook。
+## 主要代码
 
-两个版本存在实质差异，目前均保留。选择最终版本前不要互相覆盖。
+正式项目目录：
 
-### 2. 厦门短时预测
+```text
+projects/xiamen_short_term/short_term_forecast/
+```
 
-位置：`projects/xiamen_short_term/short_term_forecast/`
+该目录名称源自最初的厦门实验，但其中 `src/xiamen_forecast/` 已扩展为中国沿海多站点共用代码。目前不要再为新站点复制一套独立项目。
 
-包含完整的 ERA5 多年 v2 流程。v2 支持 1970—1997 数据逐年预处理、训练期 UTide 标定、按年份训练/验证/测试、内存映射、Persistence/Ridge 基线、ERA5-only/Surge-only 消融、CNN/CNN-LSTM/CNN-GRU/TCN/Transformer 对比、CNN-GRU 六步递归微调、72 小时滚动诊断和期刊绘图。1970—1995 训练、1996 验证和 1997 独立测试均已完成。运行方式见项目 README。
+主要入口包括：
 
-### 3. 加勒比短时预测
+- `station_config.py`：站点、年份、数据和输出配置；
+- `prepare_xiamen.py`、`audit_prepared_dataset.py`：预处理和数据审计；
+- `train_xiamen.py`：一步模型训练；
+- `train_rollout_temporal.py`：CNN-GRU 六步递归微调；
+- `rolling_diagnostics.py`：1—72 小时滚动评价；
+- `run_three_station_extreme_loss_suite.py`：三站极值损失实验调度；
+- `run_typhoon_events.py`：审核台风事件的固定起报历史回算；
+- `run_station_workflow.py`：新增站点标准流程；
+- `journal_figures/`：论文和汇报图件。
 
-位置：`projects/caribbean_forecast/caribbean_short_term_forecast/`
+## 已完成的核心结果
 
-当前主要站点为 Prickly Bay，包含数据预处理、模型训练、直接与滚动预测、ERA5 消融、物理特征实验和 2018 独立测试；同时已移植厦门 CNN-GRU 与 rollout-6，在统一的 1/3/6/12/24/48/72 h 口径下完成跨站比较。从项目目录运行 README 中的命令。
+三站 1997 全年结果表明，Rollout-6 相比普通 CNN-GRU 均能降低 72 小时递归误差：
 
-注意：`outputs/` 中约 1.3 GB 的处理数据和实验结果、`models/` 中的权重均不随普通 Git 提交保存，应单独备份。
+| 站点 | 一步最佳 RMSE | CNN-GRU 72 h RMSE | Rollout-6 72 h RMSE | 降幅 |
+|---|---:|---:|---:|---:|
+| 厦门 | 3.47 cm | 12.14 cm | **10.00 cm** | 17.6% |
+| 连云港 | 5.49 cm | 19.96 cm | **15.71 cm** | 21.3% |
+| 北海 | 3.37 cm | 17.16 cm | **14.49 cm** | 15.5% |
 
-## 参考资料
+三站 1996 极值损失统一验证已经完成。结果显示不同站点的整体误差与强增水误差最优方案并不完全一致，不能强行指定一个适用于所有站点的损失函数。当前正在推进 MSE/MSE 与 WHuber/WHuber 在四场 1997 历史台风中的逐事件对照。
 
-位置：`references/original_paper_code/`
+所有 72 小时实验使用未来有效时次的 ERA5 再分析真值，属于**已知未来气象强迫的历史回算**，不是实时业务预报。
 
-保存原论文代码压缩包、解压后的原始预处理 notebook 和模型训练 notebook。建议作为只读参考，不在这里继续开发。
+## 结果位置
 
-## 工具
+可提交 Git 的精简结果位于：
 
-- `tools/realtime_crawlers/`：浙江潮位、台风、GFS 等实时数据采集工具。
-- `tools/zhejiang_export/zhejiang_excel_export_20260812/`：浙江台风数据检查和 Excel 导出脚本。
+```text
+reports/experiment_results/
+```
 
-## 稳定成果
+当前重点目录：
 
-当前稳定成果已集中在 `reports/experiment_results/`：
+- `xiamen_short_term_1996_seed42/`、`xiamen_short_term_1997_seed42/`；
+- `lianyungang_short_term_1996_seed42/`、`lianyungang_short_term_1997_seed42/`；
+- `beihai_short_term_1996_seed42/`、`beihai_short_term_1997_seed42/`；
+- `china_three_station_comparison_1997_seed42/`；
+- `three_station_extreme_loss_validation_1996_seed42/`；
+- `china_three_station_event_distribution_v1/`；
+- `historical_typhoon_four_case_review/`；
+- `typhoon_events_1997_mse_whuber_comparison_seed42/`。
 
-- `xiamen_short_term_1996_seed42/`：厦门 1996 验证结果；
-- `xiamen_short_term_1997_seed42/`：厦门 1997 独立测试结果；
-- `prickly_bay_short_term_2018_seed42/`：Prickly Bay 2018 独立测试与期刊图；
-- `prickly_bay_core_aligned_2018_seed42/`：与厦门核心模型对齐的结果；
-- `station_core_comparison/`：两站统一模型指标；
-- `station_mechanism_comparison_complete/`：两站 ACF、增水尺度、Persistence 衰减和强事件机制对比。
+原始 GESLA、ERA5、处理后的大型 NPY、完整逐时输出和模型权重不上传 GitHub。
 
-这些目录只包含可提交 Git 的指标、说明和关键图片，不包含原始数据、逐时大数组或模型权重。
+## 运行环境与数据安全
 
-## 报告
+真实中国沿海数据和 GPU 实验主要在实验室 Windows 电脑运行：
 
-位置：`reports/project_documents/`
+```text
+仓库：H:\02_代码与模型\蒋佳倩_2026-2029_软件工程硕士\storm_surge
+环境：conda activate jjq
+项目：projects\xiamen_short_term\short_term_forecast
+```
 
-保存原来的 Word、PowerPoint 项目资料。加勒比项目自己的技术报告仍留在对应项目目录内，便于与实验结果互相对应。
+Mac 用于代码、测试、文档和精简结果审核，不假设本地具有实验室 F 盘原始数据。任何脚本都不得写入或删除 `F:\ERA5-NEW`、`F:\GESLA` 中的原始文件。
 
-## 归档
+## 当前下一步
 
-位置：`archive/`
+1. 在实验室运行三站 MSE/MSE 与 WHuber/WHuber 四场历史台风对照；
+2. 检查强增水峰值、峰时和 24/48/72 小时误差是否跨事件一致；
+3. 完成汕尾真实源数据审计后，再启动标准核心模型流程；
+4. 后续扩展更多中国沿海站点和真正未参与模型开发的台风留出案例。
 
-暂时不放入任何待删除文件。后续确认厦门最终版本后，可由维护者自行将旧版本移入此处或手动删除。
+## 非当前主线
 
-## 仓库级文件
-
-- `.gitignore`：统一忽略数据、模型、图片、缓存和运行产物。
-- `.gitattributes`：Git 属性设置。
-- `skills-lock.json`：本地工具技能锁定信息。
+`projects/caribbean_forecast/` 保存早期 Prickly Bay 跨区域实验，代码和结果暂时保留，但当前不继续投入，也不作为仓库首页和近期实验计划的主要内容。`projects/xiamen_reconstruction/` 是更早的日最大增水论文复现，仅用于追溯。
