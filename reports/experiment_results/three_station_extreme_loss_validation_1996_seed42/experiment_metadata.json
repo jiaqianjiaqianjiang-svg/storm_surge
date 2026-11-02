@@ -1,0 +1,19 @@
+{
+  "stations": [
+    "xiamen",
+    "lianyungang",
+    "beihai"
+  ],
+  "validation_year": 1996,
+  "seed": 42,
+  "test_year_loaded": false,
+  "schemes": [
+    "mse/mse",
+    "wmse/mse",
+    "wmse/wmse",
+    "awmse/awmse",
+    "whuber/whuber"
+  ],
+  "training_threshold_source": "station-specific training targets only",
+  "evaluation_sample_rule": "common timestamps/origins within each station"
+}
