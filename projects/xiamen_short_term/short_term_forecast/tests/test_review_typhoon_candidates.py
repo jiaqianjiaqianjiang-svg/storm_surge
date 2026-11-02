@@ -58,7 +58,12 @@ def test_weather_table_checks_source_and_units():
 
 
 def test_frozen_main_models_keep_other_losses_in_full_metrics():
-    assert MAIN_MODELS == ("cnn_gru", "cnn_gru_rollout6", "wmse_wmse")
+    assert MAIN_MODELS == (
+        "cnn_gru",
+        "cnn_gru_rollout6",
+        "whuber_one_step",
+        "whuber_rollout6",
+    )
     metrics = pd.DataFrame({
         "model": ["persistence", "ridge", "cnn_gru", "cnn_gru_rollout6", "wmse_wmse", "awmse_awmse"],
         "horizon_hours": [72] * 6,

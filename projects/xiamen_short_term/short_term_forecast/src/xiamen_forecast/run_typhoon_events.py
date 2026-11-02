@@ -39,10 +39,8 @@ from .typhoon_events import (
 REPO_ROOT = Path(__file__).resolve().parents[5]
 DEFAULT_OUTPUT = REPO_ROOT / "reports" / "experiment_results" / "typhoon_events_1997_seed42"
 EXTRA_NAMES = {
-    "wmse_mse": "cnn_gru_extreme_wmse_rollout6_mse",
-    "wmse_wmse": "cnn_gru_extreme_wmse_rollout6_wmse",
-    "awmse_awmse": "cnn_gru_extreme_awmse_rollout6_awmse",
-    "whuber_whuber": "cnn_gru_extreme_whuber_rollout6_whuber",
+    "whuber_one_step": "cnn_gru_extreme_whuber",
+    "whuber_rollout6": "cnn_gru_extreme_whuber_rollout6_whuber",
 }
 COLORS = {
     "observed": MODEL_COLORS["observed"],
@@ -50,9 +48,16 @@ COLORS = {
     "ridge": MODEL_COLORS["ridge"],
     "cnn_gru": MODEL_COLORS["cnn_gru"],
     "cnn_gru_rollout6": MODEL_COLORS["cnn_gru_rollout6"],
-    "wmse_wmse": "#2C7C74",
+    "whuber_one_step": "#2C7C74",
+    "whuber_rollout6": "#76527A",
 }
-MAIN_MODELS = ("cnn_gru", "cnn_gru_rollout6", "wmse_wmse")
+MAIN_MODELS = (
+    "cnn_gru",
+    "cnn_gru_rollout6",
+    "whuber_one_step",
+    "whuber_rollout6",
+)
+REPORT_MODELS = ("persistence", "ridge", *MAIN_MODELS)
 
 
 def parser() -> argparse.ArgumentParser:
@@ -78,11 +83,151 @@ def model_files(station_id: str, seed: int) -> tuple[Path, Path, Path, dict[str,
     ridge = station.model_root / "baselines" / "ridge_pipeline.joblib"
     one_step = formal / "cnn_gru" / "best_model.pth"
     rollout = formal / "cnn_gru_rollout6" / "best_model.pth"
-    extras = (
-        {name: formal / folder / "best_model.pth" for name, folder in EXTRA_NAMES.items()}
-        if station_id == "lianyungang" else {}
-    )
+    extras = {
+        name: formal / folder / "best_model.pth"
+        for name, folder in EXTRA_NAMES.items()
+    }
     return ridge, one_step, rollout, extras
+
+
+def _require_equal(actual: object, expected: object, message: str) -> None:
+    if actual != expected:
+        raise ValueError(f"{message}: got {actual!r}, expected {expected!r}")
+
+
+def _nested_equal(left: object, right: object) -> bool:
+    if isinstance(left, dict) and isinstance(right, dict):
+        return left.keys() == right.keys() and all(
+            _nested_equal(left[key], right[key]) for key in left
+        )
+    if isinstance(left, (list, tuple, np.ndarray)) or isinstance(
+        right, (list, tuple, np.ndarray)
+    ):
+        try:
+            return bool(np.array_equal(np.asarray(left), np.asarray(right)))
+        except (TypeError, ValueError):
+            return False
+    return bool(left == right)
+
+
+def _check_common_checkpoint(
+    label: str,
+    checkpoint: dict[str, object],
+    station_id: str,
+) -> None:
+    """Reject weights that cannot be identified as this station's 24 h CNN-GRU."""
+
+    _require_equal(
+        checkpoint.get("station_id"), station_id,
+        f"{label} checkpoint station_id mismatch",
+    )
+    _require_equal(
+        checkpoint.get("model_name"), "CNNGRUForecastModel",
+        f"{label} checkpoint model identity mismatch",
+    )
+    _require_equal(
+        int(checkpoint.get("input_steps", -1)), 24,
+        f"{label} checkpoint input window mismatch",
+    )
+
+
+def validate_event_checkpoints(
+    checkpoints: dict[str, dict[str, object]],
+    station_id: str,
+    seed: int,
+) -> None:
+    """Validate MSE/WHuber identities before any historical event inference."""
+
+    expected = set(MAIN_MODELS)
+    if set(checkpoints) != expected:
+        raise ValueError(
+            "Historical-event model set mismatch: "
+            f"got {sorted(checkpoints)}, expected {sorted(expected)}"
+        )
+    for label, checkpoint in checkpoints.items():
+        _check_common_checkpoint(label, checkpoint, station_id)
+
+    reference_scalers = checkpoints["cnn_gru"].get("scalers")
+    if not isinstance(reference_scalers, dict):
+        raise ValueError("cnn_gru checkpoint has no valid scalers")
+    for label, checkpoint in checkpoints.items():
+        if not _nested_equal(checkpoint.get("scalers"), reference_scalers):
+            raise ValueError(f"{label} uses scalers inconsistent with cnn_gru")
+
+    mse_one = checkpoints["cnn_gru"]
+    mse_loss = mse_one.get("loss_config")
+    if isinstance(mse_loss, dict) and mse_loss.get("loss_type", "mse") != "mse":
+        raise ValueError("cnn_gru checkpoint is not an MSE one-step model")
+
+    mse_rollout = checkpoints["cnn_gru_rollout6"].get("rollout_training")
+    if isinstance(mse_rollout, dict):
+        if "base_experiment" in mse_rollout:
+            _require_equal(
+                mse_rollout["base_experiment"], "cnn_gru",
+                "cnn_gru_rollout6 base experiment mismatch",
+            )
+        if "rollout_steps" in mse_rollout:
+            _require_equal(
+                int(mse_rollout["rollout_steps"]), 6,
+                "cnn_gru_rollout6 rollout length mismatch",
+            )
+        rollout_loss = mse_rollout.get("loss_config")
+        if isinstance(rollout_loss, dict) and rollout_loss.get("loss_type", "mse") != "mse":
+            raise ValueError("cnn_gru_rollout6 checkpoint is not an MSE rollout model")
+
+    whuber_one = checkpoints["whuber_one_step"]
+    whuber_loss = whuber_one.get("loss_config")
+    if not isinstance(whuber_loss, dict) or whuber_loss.get("loss_type") != "whuber":
+        raise ValueError("whuber_one_step loss_config.loss_type must be 'whuber'")
+    training_config = whuber_one.get("training_config")
+    if not isinstance(training_config, dict):
+        raise ValueError("whuber_one_step checkpoint has no training_config")
+    _require_equal(
+        int(training_config.get("seed", -1)), seed,
+        "whuber_one_step seed mismatch",
+    )
+
+    whuber_rollout = checkpoints["whuber_rollout6"].get("rollout_training")
+    if not isinstance(whuber_rollout, dict):
+        raise ValueError("whuber_rollout6 checkpoint has no rollout_training")
+    _require_equal(
+        whuber_rollout.get("base_experiment"), "cnn_gru_extreme_whuber",
+        "whuber_rollout6 base experiment mismatch",
+    )
+    _require_equal(
+        int(whuber_rollout.get("rollout_steps", -1)), 6,
+        "whuber_rollout6 rollout length mismatch",
+    )
+    _require_equal(
+        int(whuber_rollout.get("seed", -1)), seed,
+        "whuber_rollout6 seed mismatch",
+    )
+    rollout_loss = whuber_rollout.get("loss_config")
+    if not isinstance(rollout_loss, dict) or rollout_loss.get("loss_type") != "whuber":
+        raise ValueError(
+            "whuber_rollout6 rollout_training.loss_config.loss_type must be 'whuber'"
+        )
+
+
+def load_event_models(
+    station_id: str,
+    seed: int,
+    device: torch.device,
+) -> tuple[dict[str, torch.nn.Module], dict[str, object], dict[str, Path]]:
+    """Load and audit the four fixed neural models for event comparison."""
+
+    station = get_station_config(station_id)
+    _, _, rollout_path, extras = model_files(station_id, seed)
+    models, checkpoints, paths = load_models(
+        station.model_root / f"formal_seed{seed}",
+        device,
+        rollout_path,
+        ("cnn_gru",),
+        station_id,
+        extras,
+    )
+    validate_event_checkpoints(checkpoints, station_id, seed)
+    return models, checkpoints, paths
 
 
 def missing_model_files(station_id: str, seed: int) -> list[str]:
@@ -203,7 +348,13 @@ def _plot_process(forecasts: pd.DataFrame, path: Path) -> None:
         axis.scatter([pd.Timestamp(observed_peak.valid_time_utc)], [observed_peak.surge_cm], color=COLORS["observed"], marker="o", s=19, zorder=4)
         for index, name in enumerate(names):
             model = section.loc[section.model == name].sort_values("valid_time_utc")
-            axis.plot(dates, model.surge_cm, color=COLORS[name], linestyle=("-", "--", "-.", ":")[index], label=name.replace("_", " "))
+            axis.plot(
+                dates,
+                model.surge_cm,
+                color=COLORS[name],
+                linestyle=("-", "--", "-.", ":")[index],
+                label=name.replace("_", " "),
+            )
             peak = model.iloc[int(model.surge_cm.to_numpy().argmax())]
             axis.scatter([pd.Timestamp(peak.valid_time_utc)], [peak.surge_cm], color=COLORS[name], s=15, zorder=4)
         axis.set_ylabel("Surge (cm)")
@@ -231,7 +382,7 @@ def summarise_exact_leads(metrics: pd.DataFrame) -> pd.DataFrame:
 
 def _plot_errors(metrics: pd.DataFrame, lead_metrics: pd.DataFrame, path: Path) -> None:
     setup_journal_style()
-    names = [name for name in ("persistence", "ridge", *MAIN_MODELS) if name in metrics.model.unique()]
+    names = [name for name in REPORT_MODELS if name in metrics.model.unique()]
     fig, axes = plt.subplots(1, 3, figsize=(10.4, 3.15), layout="constrained")
     fields = (
         ("lead_rmse_cm", "Exact-lead RMSE (cm)"),
@@ -244,7 +395,16 @@ def _plot_errors(metrics: pd.DataFrame, lead_metrics: pd.DataFrame, path: Path) 
                 series = lead_metrics.loc[lead_metrics.model == name].set_index("lead_hours")[field]
             else:
                 series = metrics.loc[metrics.model == name].groupby("horizon_hours")[field].mean()
-            axis.plot(series.index, series.values, color=COLORS[name], marker=("o", "s", "^", "d", "v")[index], linestyle=("-", "--", "-.", ":", "--")[index], label=name.replace("_", " "))
+            markers = ("^", "s", "o", "D", "v", "P")
+            linestyles = ("--", "-.", "-", "--", "-.", ":")
+            axis.plot(
+                series.index,
+                series.values,
+                color=COLORS[name],
+                marker=markers[index],
+                linestyle=linestyles[index],
+                label=name.replace("_", " "),
+            )
         axis.set(xlabel="Horizon (h)", ylabel=label, xticks=EVALUATION_HOURS)
         axis.grid(alpha=0.45)
     axes[0].legend(loc="best")
@@ -281,14 +441,9 @@ def _run_one_impl(row: pd.Series, track: pd.DataFrame, args: argparse.Namespace,
     if not np.isfinite(coverage["max_observed_surge_cm"]) or coverage["max_observed_surge_cm"] <= 0:
         raise ValueError("No positive observed surge peak in the fixed event window")
     origins = np.asarray(coverage["valid_origin_positions"], dtype=np.int64)
-    ridge_path, _, rollout_path, extras = model_files(station_id, args.seed)
+    ridge_path, _, _, _ = model_files(station_id, args.seed)
     device = _device(args.device)
-    models, checkpoints, paths = load_models(
-        station.model_root / f"formal_seed{args.seed}", device,
-        rollout_path, ("cnn_gru",), station_id, extras,
-    )
-    if "cnn_gru_rollout6" not in models:
-        raise ValueError("Base rollout checkpoint does not identify as CNN-GRU rollout-6")
+    models, checkpoints, paths = load_event_models(station_id, args.seed, device)
     ridge = joblib.load(ridge_path)
     predictions = recursive_predictions(
         atmosphere, surge, origins, summarise_atmosphere(atmosphere), ridge,
@@ -342,7 +497,7 @@ def _run_one_impl(row: pd.Series, track: pd.DataFrame, args: argparse.Namespace,
     }, ensure_ascii=False, indent=2), encoding="utf-8")
     focused = metrics.loc[
         (metrics.horizon_hours == 72)
-        & metrics.model.isin(("ridge", "cnn_gru", "cnn_gru_rollout6", *extras))
+        & metrics.model.isin(REPORT_MODELS)
     ]
     lines = [
         f"# {station.name} — {row.storm_name} ({row.storm_sid})",
@@ -373,6 +528,82 @@ def _run_one_impl(row: pd.Series, track: pd.DataFrame, args: argparse.Namespace,
     ])
     (event_dir / "研究报告.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     return metrics
+
+
+def build_event_comparison(metrics: pd.DataFrame) -> pd.DataFrame:
+    """Summarise the four neural models for each event without pooling storms."""
+
+    neural = metrics.loc[metrics.model.isin(MAIN_MODELS)].copy()
+    rows: list[dict[str, object]] = []
+    for keys, group in neural.groupby(
+        ["event_id", "station", "storm_name", "storm_sid", "model", "horizon_hours"],
+        sort=True,
+    ):
+        event_id, station, storm_name, storm_sid, model, horizon = keys
+        endpoint = group.endpoint_error_cm.to_numpy(dtype=float)
+        rows.append({
+            "event_id": event_id,
+            "station": station,
+            "storm_name": storm_name,
+            "storm_sid": storm_sid,
+            "model": model,
+            "horizon_hours": int(horizon),
+            "n_origins": int(len(group)),
+            "mean_window_rmse_cm": float(group.rmse_cm.mean()),
+            "mean_window_mae_cm": float(group.mae_cm.mean()),
+            "mean_window_bias_cm": float(group.bias_cm.mean()),
+            "exact_lead_rmse_cm": float(np.sqrt(np.mean(endpoint**2))),
+            "exact_lead_mae_cm": float(np.mean(np.abs(endpoint))),
+            "exact_lead_bias_cm": float(np.mean(endpoint)),
+            "mean_peak_height_error_cm": float(group.peak_height_error_cm.mean()),
+            "mean_absolute_peak_height_error_cm": float(
+                group.absolute_peak_height_error_cm.mean()
+            ),
+            "mean_peak_time_error_hours": float(group.peak_time_error_hours.mean()),
+            "mean_peak_underestimation_cm": float(group.peak_underestimation_cm.mean()),
+        })
+    return pd.DataFrame(rows)
+
+
+def write_event_comparison_report(output: Path, comparison: pd.DataFrame) -> None:
+    """Write compact cross-event outputs after all approved events finish."""
+
+    comparison.to_csv(
+        output / "event_neural_model_comparison.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
+    lines = [
+        "# 1997年历史台风 MSE/WHuber 逐场对照",
+        "",
+        "本结果使用未来已知的ERA5再分析气象强迫，属于历史回算，不是实时业务预报。1997年已用于既有全年评价，因此这里只是追加历史案例分析，不是全新盲测。",
+        "",
+        "三次固定起报（t0-72 h、t0-48 h、t0-24 h）均独立递归72小时；起报之后不使用未来真实增水回填。表中每个数值是同一台风三个重叠起报的描述性平均，不能当作三场独立事件。",
+        "",
+        "| 事件 | 站点 | 模型 | 时效(h) | 窗口RMSE(cm) | 精确时效RMSE(cm) | 峰高绝对误差(cm) | 峰时误差(h) |",
+        "|---|---|---|---:|---:|---:|---:|---:|",
+    ]
+    for _, row in comparison.sort_values(
+        ["event_id", "model", "horizon_hours"]
+    ).iterrows():
+        lines.append(
+            f"| {row.storm_name} | {row.station} | {row.model} | "
+            f"{int(row.horizon_hours)} | {row.mean_window_rmse_cm:.2f} | "
+            f"{row.exact_lead_rmse_cm:.2f} | "
+            f"{row.mean_absolute_peak_height_error_cm:.2f} | "
+            f"{row.mean_peak_time_error_hours:+.1f} |"
+        )
+    lines.extend([
+        "",
+        "## 解释限制",
+        "",
+        "- `mean_window_rmse_cm`是每次起报后前24/48/72小时累计RMSE的平均；`exact_lead_rmse_cm`是恰好该提前量处三个误差的描述性RMSE，两者不能混用。",
+        "- 峰值指标始终在同一起报、同一固定窗口内比较；不同起报曲线没有拼接。",
+        "- 本对照不用于重新选择损失函数或调整WHuber参数。台风归因继续沿用已审核清单中的人工说明。",
+    ])
+    (output / "MSE_WHUBER逐事件对比报告.md").write_text(
+        "\n".join(lines) + "\n", encoding="utf-8"
+    )
 
 
 def run(args: argparse.Namespace) -> None:
@@ -417,7 +648,11 @@ def run(args: argparse.Namespace) -> None:
             failures.append({"event_id": row.event_id, "reason": str(error)})
             print(f"Skipped {row.event_id}: {error}")
     if all_metrics:
-        pd.concat(all_metrics, ignore_index=True).to_csv(output / "all_event_metrics.csv", index=False, encoding="utf-8-sig")
+        combined = pd.concat(all_metrics, ignore_index=True)
+        combined.to_csv(
+            output / "all_event_metrics.csv", index=False, encoding="utf-8-sig"
+        )
+        write_event_comparison_report(output, build_event_comparison(combined))
     approved.to_csv(output / "confirmed_event_list.csv", index=False, encoding="utf-8-sig")
     (output / "run_status.json").write_text(json.dumps({
         "completed_event_ids": [str(frame.event_id.iloc[0]) for frame in all_metrics],

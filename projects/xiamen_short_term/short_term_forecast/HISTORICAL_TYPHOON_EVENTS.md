@@ -34,12 +34,13 @@ Windows笔记本或无CUDA的机器把`--device cuda`改为`--device cpu`。运�
 
 ## 模型与输出
 
-厦门、北海：Ridge、CNN-GRU、CNN-GRU rollout-6；连云港另含WMSE→MSE、WMSE→WMSE、AWMSE→AWMSE、WHuber→WHuber。Persistence也作为基础对照。所有模型都从各站既有`models/<station>/`加载；若任一必需权重缺失，事件跳过并明确报错，不能冒充已经完成该组合。
+当前统一对照固定为Persistence、Ridge、MSE一步CNN-GRU、MSE Rollout-6、WHuber一步CNN-GRU和WHuber Rollout-6。四个神经网络模型在三个站使用一致的标签与checkpoint目录；旧WMSE、AWMSE等方案仍保留在原结果包中，但不再是本轮台风主流程的必需权重。若任一必需权重缺失或身份审计失败，事件跳过并明确报错，不能自动重训、替换或冒充已经完成。
 
 结果包为仓库根目录 `reports/experiment_results/typhoon_events_1997_seed42/`：
 
 - `source_and_protocol.json`、`candidate_events.csv`、`confirmed_event_list.csv`：来源、筛选与人工确认记录。
 - `run_status.json`、`all_event_metrics.csv`：总体完成状态与全部已完成事件的逐起报、逐模型、逐窗口评价。
+- `event_neural_model_comparison.csv`、`MSE_WHUBER逐事件对比报告.md`：四场事件、四个神经网络模型和24/48/72小时的统一描述性汇总。
 - 每个`<station>_<stormSID>/`下有原始路径摘录、完整72小时预报CSV、`event_metrics.csv`、`exact_lead_metrics.csv`、权重来源和哈希、三张真实结果PNG和`研究报告.md`。
 
 图1是真实最佳路径与站点位置（经纬度图，不是海岸线底图）；图2分三行显示三次起报的实测和预测过程，绝不拼接；图3显示精确24/48/72小时提前量RMSE，以及各固定窗口的峰高、峰时误差。`event_metrics.csv`的`rmse_cm`是单次起报后前H小时累计RMSE；`exact_lead_metrics.csv`的RMSE是三次固定起报在恰好H小时处的描述性汇总。三次重叠起报不是三场独立台风，也不能据此构造独立案例置信区间。
@@ -73,7 +74,24 @@ python -m src.xiamen_forecast.run_typhoon_events scan --track-csv "outputs\best_
 python -m src.xiamen_forecast.run_typhoon_events run --track-csv "outputs\best_tracks\ibtracs.WP.list.v04r01.csv" --stations xiamen lianyungang --results-dir $caseDir --device cuda
 ```
 
-同一事件的三次起报、全部模型、观测和未来ERA5强迫由现有回算程序统一处理，不重新训练。厦门主图比较CNN-GRU与原Rollout-6；连云港主图再加入WMSE→WMSE。Persistence与Ridge留在误差对照图和完整表，其他已训练损失组合保留为消融表格，不作为主图重点。输出包括每场`forecasts_72h.csv`、`event_metrics.csv`、`exact_lead_metrics.csv`和PNG；报告必须注明这是未来ERA5已知的历史回算、1997追加案例而非新盲测。
+原AMBER/VICTOR结果包保持不变。新的统一MSE/WHuber对照由下一节的准备脚本读取已审核决定，不重新筛选或改写人工归因。
+
+## 四场MSE/WHuber统一对照
+
+准备脚本只读取两个已审核结果包的`confirmed_event_list.csv`与`source_and_protocol.json`，核对最佳路径SHA-256、年份、种子、三次起报规则及24/48/72小时评价时效。它只保留`review_decision=yes`的ZITA、WINNIE、VICTOR和AMBER，并原样保留`t0`与`review_note`。目标目录已存在时会拒绝覆盖。
+
+实验室更新代码后，从项目目录执行：
+
+```powershell
+conda activate jjq
+Set-Location -LiteralPath "H:\02_代码与模型\蒋佳倩_2026-2029_软件工程硕士\storm_surge\projects\xiamen_short_term\short_term_forecast"
+python -m src.xiamen_forecast.prepare_typhoon_mse_whuber_comparison
+python -m src.xiamen_forecast.run_typhoon_events run --track-csv "outputs\best_tracks\ibtracs.WP.list.v04r01.csv" --stations xiamen lianyungang beihai --results-dir "..\..\..\reports\experiment_results\typhoon_events_1997_mse_whuber_comparison_seed42" --device cuda
+```
+
+如果准备后的两个小文件已随Git同步，第一条准备命令会按设计拒绝覆盖，此时直接运行第二条回算命令。运行前程序逐一检查四个checkpoint的站点、CNN-GRU身份、24小时输入和scaler一致性；WHuber还必须满足一步损失类型与种子、Rollout基础实验、六步长度及Rollout损失类型。MSE旧checkpoint允许缺少部分旧版损失元数据，但发现明确的站点、模型或配置冲突仍会停止该事件。
+
+每场主过程图展示四个神经网络模型，Persistence和Ridge保留在完整CSV及误差参考图中。三次起报各自递归72小时，不拼接曲线，也不使用起报后的真实增水。所有报告继续明确：这是未来ERA5已知的1997年追加历史回算，不是实时预报或全新盲测，也不用于根据1997结果重新选择损失函数。
 
 ## 实时预报准备（尚未实现）
 

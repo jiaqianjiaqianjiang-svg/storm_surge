@@ -155,10 +155,16 @@ def test_confirmed_case_exports_common_origins(tmp_path, monkeypatch):
         file.write_bytes(b"synthetic-test-only")
     monkeypatch.setattr(workflow, "missing_model_files", lambda station, seed: [])
     monkeypatch.setattr(workflow, "model_files", lambda station, seed: (*files, {}))
-    monkeypatch.setattr(workflow, "load_models", lambda *args: (
-        {"cnn_gru": object(), "cnn_gru_rollout6": object()},
+    event_models = {
+        "cnn_gru": object(),
+        "cnn_gru_rollout6": object(),
+        "whuber_one_step": object(),
+        "whuber_rollout6": object(),
+    }
+    monkeypatch.setattr(workflow, "load_event_models", lambda *args: (
+        event_models,
         {"cnn_gru": {"scalers": {}}},
-        {"cnn_gru": files[1], "cnn_gru_rollout6": files[2]},
+        {name: files[1] for name in event_models},
     ))
     monkeypatch.setattr(workflow.joblib, "load", lambda path: object())
     monkeypatch.setattr(workflow, "summarise_atmosphere", lambda atmosphere: np.zeros((240, 1, 1)))
@@ -167,12 +173,14 @@ def test_confirmed_case_exports_common_origins(tmp_path, monkeypatch):
     def fake_recursive(atmosphere, surge, origins, summaries, ridge, models, scalers, input_steps, max_lead, batch_size, device):
         calls.append(origins.copy())
         assert len(origins) == 3 and input_steps == 24 and max_lead == 72
-        assert list(models) == ["cnn_gru", "cnn_gru_rollout6"]
+        assert list(models) == list(workflow.MAIN_MODELS)
         return {
             "persistence": np.full((3, 72), 0.1),
             "ridge": np.full((3, 72), 0.2),
             "cnn_gru": np.full((3, 72), 0.3),
             "cnn_gru_rollout6": np.full((3, 72), 0.4),
+            "whuber_one_step": np.full((3, 72), 0.35),
+            "whuber_rollout6": np.full((3, 72), 0.45),
         }
 
     monkeypatch.setattr(workflow, "recursive_predictions", fake_recursive)
@@ -191,10 +199,10 @@ def test_confirmed_case_exports_common_origins(tmp_path, monkeypatch):
     })
     metrics = workflow.run_one(row, track, argparse.Namespace(year=1997, seed=42, device="cpu"), output)
     assert len(calls) == 1
-    assert len(metrics) == 3 * 4 * 3
+    assert len(metrics) == 3 * 6 * 3
     event = output / "xiamen_TEST"
-    assert len(pd.read_csv(event / "forecasts_72h.csv")) == 3 * 5 * 72
-    assert len(pd.read_csv(event / "exact_lead_metrics.csv")) == 4 * 3
+    assert len(pd.read_csv(event / "forecasts_72h.csv")) == 3 * 7 * 72
+    assert len(pd.read_csv(event / "exact_lead_metrics.csv")) == 6 * 3
     assert (event / "研究报告.md").is_file()
     assert all((event / f"figure{index}_{name}.png").stat().st_size > 1000 for index, name in (
         (1, "best_track"), (2, "fixed_origin_forecasts"), (3, "event_errors"),
