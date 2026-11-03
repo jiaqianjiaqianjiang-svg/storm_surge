@@ -10,7 +10,7 @@
 | 连云港 | 已有1996一步和Rollout精简结果 | 已有 | 已有 | 已有 | 已有 |
 | 北海 | 已有1996一步和Rollout精简结果 | 未见Git精简结果 | 未见Git精简结果 | 未见Git精简结果 | 未见Git精简结果 |
 
-`mac_repository_status.csv`逐方案记录Mac上checkpoint、配置、验证预测、滚动结果和Git精简证据。Mac不保存实验室大型文件，因此`laboratory_ignored_checkpoint_status`统一为“unknown until laboratory dry-run”。实验室必须运行`THREE_STATION_EXTREME_LOSS_SUITE.md`中的状态审计，才能确定哪些权重可复用、哪些确实需要补训。
+`mac_repository_status.csv`逐方案记录Mac上checkpoint、配置、验证预测、滚动结果和Git精简证据。Mac不保存实验室大型文件，因此`laboratory_ignored_checkpoint_status`统一为“unknown until laboratory dry-run”。本目录是已完成阶段的归档记录；如需复核旧实验，应在实验室使用 `run_three_station_extreme_loss_suite --dry-run` 审计实际权重，不应仅凭Mac文件判断是否需要补训。后续新增站点按项目的 `CHINA_COASTAL_WORKFLOW.md` 执行，不再复制这套阶段性说明。
 
 ## 当前边界
 

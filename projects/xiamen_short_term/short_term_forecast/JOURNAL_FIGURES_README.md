@@ -14,7 +14,7 @@ python -m src.short_term_forecast.journal_figures.make_xiamen_journal_figures
 
 ## 运行位置
 
-建议在保存实验结果的远程实验室 Windows 电脑上运行。当前 Mac 本地没有真实结果，因此不要在本地扫描 `outputs/` 判断实验是否存在。
+应在实际保存实验结果的环境中运行；没有真实结果的代码副本不能通过扫描空的 `outputs/` 判断实验是否存在。
 
 统一入口示例：
 
@@ -170,7 +170,7 @@ MODEL_COLORS = {...}
 setup_journal_style(font_size=8.0)
 ```
 
-字体优先使用 Arial；如果系统没有 Arial，会自动回退到 DejaVu Sans。当前图件使用低饱和度配色：参照模型以灰色为主，CNN-GRU 用深蓝，rollout-6 用砖红；折线同时以线型和标记区分模型，避免只靠颜色识别。颜色、线型和标记分别在 `MODEL_COLORS`、`MODEL_LINESTYLES`、`MODEL_MARKERS` 中调整。误差正负号使用深蓝/砖红区分。三站对比图 `tools/compare_china_short_term_stations.py` 采用相同的模型配色。主要颜色：
+字体优先使用 Arial；如果系统没有 Arial，会自动回退到 DejaVu Sans。当前图件使用低饱和度配色：参照模型以灰色为主，CNN-GRU 用深蓝，rollout-6 用砖红；折线同时以线型和标记区分模型，避免只靠颜色识别。颜色、线型和标记分别在 `MODEL_COLORS`、`MODEL_LINESTYLES`、`MODEL_MARKERS` 中调整。误差正负号使用深蓝/砖红区分。跨站对比图应采用相同的模型配色。主要颜色：
 
 ```text
 observed: near-black
