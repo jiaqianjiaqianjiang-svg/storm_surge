@@ -102,11 +102,12 @@ figure3_event_errors.png
 
 ## 7. 已有参考结果
 
-仓库已经保存四场1997年追加历史回算及MSE/WHuber对照：
+仓库已经保存原有四场1997年追加历史回算、MSE/WHuber对照，以及坎门WINNIE事件结果：
 
 ```text
 reports/experiment_results/historical_typhoon_four_case_review/
 reports/experiment_results/typhoon_events_1997_mse_whuber_comparison_seed42/
+reports/experiment_results/kanmen_1996_1997_seed42_compact/typhoon_1997/
 ```
 
 这些案例是在1997全年结果已经查看后的补充分析，不是新的盲测。它们用于验证分析方法和展示模型差异，不用于重新选择训练方案。
