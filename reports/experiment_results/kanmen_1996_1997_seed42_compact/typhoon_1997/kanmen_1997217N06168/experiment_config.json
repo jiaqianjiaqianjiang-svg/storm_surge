@@ -1,0 +1,39 @@
+{
+  "station": "kanmen",
+  "storm_sid": "1997217N06168",
+  "t0_utc": "1997-08-18T13:00:00",
+  "closest_distance_km": 29.18,
+  "observed_peak_cm_in_120h_window": 148.36827516555786,
+  "origin_offsets_hours": [
+    -72,
+    -48,
+    -24
+  ],
+  "horizons_hours": [
+    24,
+    48,
+    72
+  ],
+  "ridge_path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\kanmen\\baselines\\ridge_pipeline.joblib",
+  "ridge_sha256": "42c2fdf17bc0be67c1be00d830027c413dab6f9a07993ec33227fa1327d7f765",
+  "neural_checkpoints": {
+    "cnn_gru": {
+      "path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\kanmen\\formal_seed42\\cnn_gru\\best_model.pth",
+      "sha256": "4fbeb4015ef8e78853a3f5507e5c3f62d4906e129bf3a16e2c0d8310db6c7e1c"
+    },
+    "cnn_gru_rollout6": {
+      "path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\kanmen\\formal_seed42\\cnn_gru_rollout6\\best_model.pth",
+      "sha256": "7abde22c7a38771e03b710a0fab9a2e728086ffb398b965934236419f5478613"
+    },
+    "whuber_one_step": {
+      "path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\kanmen\\formal_seed42\\cnn_gru_extreme_whuber\\best_model.pth",
+      "sha256": "8e8ee82f4da67e268b103ac708ce7f1465c44fed212c84d36954ca59f2747049"
+    },
+    "whuber_rollout6": {
+      "path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\kanmen\\formal_seed42\\cnn_gru_extreme_whuber_rollout6_whuber\\best_model.pth",
+      "sha256": "d0933ca64610c00d6284d959c2eb5261e6eec8df0a3b3cebeb6857853a02b24e"
+    }
+  },
+  "known_future_era5": true,
+  "future_observed_surge_as_input": false
+}

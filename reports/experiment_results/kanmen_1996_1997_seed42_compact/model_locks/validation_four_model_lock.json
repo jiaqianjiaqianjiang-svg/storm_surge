@@ -1,0 +1,31 @@
+﻿{
+    "selection_rule":  "Fixed models based on 1996 validation; do not tune using 1997.",
+    "seed":  42,
+    "training_years":  [
+                           1975,
+                           1995
+                       ],
+    "validation_metrics_file":  "outputs\\experiments\\kanmen\\rolling_mse_whuber_1996_seed42\\rolling_metrics_long.csv",
+    "models":  {
+                   "cnn_gru":  {
+                                   "sha256":  "4fbeb4015ef8e78853a3f5507e5c3f62d4906e129bf3a16e2c0d8310db6c7e1c",
+                                   "path":  "models\\kanmen\\formal_seed42\\cnn_gru\\best_model.pth"
+                               },
+                   "cnn_gru_rollout6":  {
+                                            "sha256":  "7abde22c7a38771e03b710a0fab9a2e728086ffb398b965934236419f5478613",
+                                            "path":  "models\\kanmen\\formal_seed42\\cnn_gru_rollout6\\best_model.pth"
+                                        },
+                   "whuber_one_step":  {
+                                           "sha256":  "8e8ee82f4da67e268b103ac708ce7f1465c44fed212c84d36954ca59f2747049",
+                                           "path":  "models\\kanmen\\formal_seed42\\cnn_gru_extreme_whuber\\best_model.pth"
+                                       },
+                   "whuber_rollout6":  {
+                                           "sha256":  "d0933ca64610c00d6284d959c2eb5261e6eec8df0a3b3cebeb6857853a02b24e",
+                                           "path":  "models\\kanmen\\formal_seed42\\cnn_gru_extreme_whuber_rollout6_whuber\\best_model.pth"
+                                       }
+               },
+    "test_year":  1997,
+    "validation_year":  1996,
+    "station_id":  "kanmen",
+    "validation_metrics_sha256":  "d6afe473fccfe666ba2059d03ff85bebf9f62cd5ff23e5789338dd9668e6e294"
+}
