@@ -1,0 +1,48 @@
+{
+  "split_mode": "years_validation_only",
+  "input_steps": 24,
+  "valid_samples": 192840,
+  "train_years": [
+    1975,
+    1995
+  ],
+  "validation_year": 1996,
+  "test_year_loaded": false,
+  "train_samples": 184056,
+  "validation_samples": 8784,
+  "skipped": {
+    "non_contiguous": 0,
+    "missing_atmosphere": 0,
+    "missing_surge": 0
+  },
+  "train_time_range": [
+    "1975-01-02 00:00:00",
+    "1995-12-31 23:00:00"
+  ],
+  "validation_time_range": [
+    "1996-01-01 00:00:00",
+    "1996-12-31 23:00:00"
+  ],
+  "scalers": {
+    "atmosphere": {
+      "mean": [
+        -1.2915098667144775,
+        -1.155393362045288,
+        101492.8515625
+      ],
+      "scale": [
+        3.2705774307250977,
+        4.760366439819336,
+        809.52685546875
+      ]
+    },
+    "surge": {
+      "mean": [
+        1.460718525303495e-11
+      ],
+      "scale": [
+        0.18254323303699493
+      ]
+    }
+  }
+}

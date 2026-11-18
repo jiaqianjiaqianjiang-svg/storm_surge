@@ -1,0 +1,748 @@
+{
+  "status": "passed",
+  "station": {
+    "station_id": "kanmen",
+    "station_name": "Kanmen",
+    "latitude": 28.088,
+    "longitude": 121.282,
+    "gesla_file": "F:\\GESLA\\GESLA3\\kanmen-632a-chn-uhslc",
+    "era5_dir": "F:\\ERA5-NEW\\Kanmen",
+    "era5_files": {
+      "U10": "F:\\ERA5-NEW\\Kanmen\\kanmen_10u_1975_1997.nc",
+      "V10": "F:\\ERA5-NEW\\Kanmen\\kanmen_v10_1975_1997.nc",
+      "MSL": "F:\\ERA5-NEW\\Kanmen\\kanmen_slp_1975_1997.nc"
+    },
+    "data_years": [
+      1975,
+      1997
+    ],
+    "training_years": [
+      1975,
+      1995
+    ],
+    "validation_year": 1996,
+    "test_year": 1997,
+    "input_steps": 24,
+    "grid_size": 40,
+    "variable_order": [
+      "U10",
+      "V10",
+      "MSL"
+    ]
+  },
+  "dataset_dir": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\outputs\\processed\\kanmen\\aligned_dataset",
+  "array_shapes": {
+    "atmosphere": [
+      201616,
+      3,
+      40,
+      40
+    ],
+    "surge": [
+      201616
+    ],
+    "time": [
+      201616
+    ]
+  },
+  "file_sizes_bytes": {
+    "atmosphere": 3871027328,
+    "surge": 806592,
+    "time": 1613056
+  },
+  "atmosphere_size_gib": 3.6051751375198364,
+  "time_range": [
+    "1975-01-01 00:00:00",
+    "1997-12-31 15:00:00"
+  ],
+  "strictly_hourly": true,
+  "surge_finite_count": 201616,
+  "surge_missing_count": 0,
+  "surge_statistics_cm": {
+    "mean": -0.028324588305397566,
+    "standard_deviation": 18.308511692370182,
+    "minimum": -78.60466241836548,
+    "maximum": 174.84287023544312,
+    "absolute_p90": 29.27432209253311,
+    "absolute_p95": 35.8511283993721,
+    "absolute_p99": 51.73575520515449
+  },
+  "variables": [
+    {
+      "variable": "U10",
+      "expected_unit": "m/s",
+      "finite_count": 322585600,
+      "missing_count": 0,
+      "finite_fraction": 1.0,
+      "minimum": -34.096923828125,
+      "maximum": 33.38458251953125,
+      "mean": -1.2905623765062617
+    },
+    {
+      "variable": "V10",
+      "expected_unit": "m/s",
+      "finite_count": 322585600,
+      "missing_count": 0,
+      "finite_fraction": 1.0,
+      "minimum": -33.14826965332031,
+      "maximum": 35.61231994628906,
+      "mean": -1.1447504198437979
+    },
+    {
+      "variable": "MSL",
+      "expected_unit": "Pa",
+      "finite_count": 322585600,
+      "missing_count": 0,
+      "finite_fraction": 1.0,
+      "minimum": 93803.75,
+      "maximum": 104646.875,
+      "mean": 101496.28372335824
+    }
+  ],
+  "msl_unit_check": {
+    "expected_unit": "Pa",
+    "mean_in_expected_pressure_range": true,
+    "conclusion": "MSL remains in Pa"
+  },
+  "input_steps": 24,
+  "expected_grid_size": 40,
+  "valid_samples": 201592,
+  "skipped": {
+    "non_contiguous": 0,
+    "missing_atmosphere": 0,
+    "missing_surge": 0
+  },
+  "yearly_samples": {
+    "1975": {
+      "hours": 8760,
+      "time_range": [
+        "1975-01-01 00:00:00",
+        "1975-12-31 23:00:00"
+      ],
+      "finite_observations": 8760,
+      "missing_observations": 0,
+      "valid_samples": 8736,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1976": {
+      "hours": 8784,
+      "time_range": [
+        "1976-01-01 00:00:00",
+        "1976-12-31 23:00:00"
+      ],
+      "finite_observations": 8784,
+      "missing_observations": 0,
+      "valid_samples": 8760,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1977": {
+      "hours": 8760,
+      "time_range": [
+        "1977-01-01 00:00:00",
+        "1977-12-31 23:00:00"
+      ],
+      "finite_observations": 8760,
+      "missing_observations": 0,
+      "valid_samples": 8736,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1978": {
+      "hours": 8760,
+      "time_range": [
+        "1978-01-01 00:00:00",
+        "1978-12-31 23:00:00"
+      ],
+      "finite_observations": 8760,
+      "missing_observations": 0,
+      "valid_samples": 8736,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1979": {
+      "hours": 8760,
+      "time_range": [
+        "1979-01-01 00:00:00",
+        "1979-12-31 23:00:00"
+      ],
+      "finite_observations": 8760,
+      "missing_observations": 0,
+      "valid_samples": 8736,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1980": {
+      "hours": 8784,
+      "time_range": [
+        "1980-01-01 00:00:00",
+        "1980-12-31 23:00:00"
+      ],
+      "finite_observations": 8784,
+      "missing_observations": 0,
+      "valid_samples": 8760,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1981": {
+      "hours": 8760,
+      "time_range": [
+        "1981-01-01 00:00:00",
+        "1981-12-31 23:00:00"
+      ],
+      "finite_observations": 8760,
+      "missing_observations": 0,
+      "valid_samples": 8736,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1982": {
+      "hours": 8760,
+      "time_range": [
+        "1982-01-01 00:00:00",
+        "1982-12-31 23:00:00"
+      ],
+      "finite_observations": 8760,
+      "missing_observations": 0,
+      "valid_samples": 8736,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1983": {
+      "hours": 8760,
+      "time_range": [
+        "1983-01-01 00:00:00",
+        "1983-12-31 23:00:00"
+      ],
+      "finite_observations": 8760,
+      "missing_observations": 0,
+      "valid_samples": 8736,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1984": {
+      "hours": 8784,
+      "time_range": [
+        "1984-01-01 00:00:00",
+        "1984-12-31 23:00:00"
+      ],
+      "finite_observations": 8784,
+      "missing_observations": 0,
+      "valid_samples": 8760,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1985": {
+      "hours": 8760,
+      "time_range": [
+        "1985-01-01 00:00:00",
+        "1985-12-31 23:00:00"
+      ],
+      "finite_observations": 8760,
+      "missing_observations": 0,
+      "valid_samples": 8736,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1986": {
+      "hours": 8760,
+      "time_range": [
+        "1986-01-01 00:00:00",
+        "1986-12-31 23:00:00"
+      ],
+      "finite_observations": 8760,
+      "missing_observations": 0,
+      "valid_samples": 8736,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1987": {
+      "hours": 8760,
+      "time_range": [
+        "1987-01-01 00:00:00",
+        "1987-12-31 23:00:00"
+      ],
+      "finite_observations": 8760,
+      "missing_observations": 0,
+      "valid_samples": 8736,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1988": {
+      "hours": 8784,
+      "time_range": [
+        "1988-01-01 00:00:00",
+        "1988-12-31 23:00:00"
+      ],
+      "finite_observations": 8784,
+      "missing_observations": 0,
+      "valid_samples": 8760,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1989": {
+      "hours": 8760,
+      "time_range": [
+        "1989-01-01 00:00:00",
+        "1989-12-31 23:00:00"
+      ],
+      "finite_observations": 8760,
+      "missing_observations": 0,
+      "valid_samples": 8736,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1990": {
+      "hours": 8760,
+      "time_range": [
+        "1990-01-01 00:00:00",
+        "1990-12-31 23:00:00"
+      ],
+      "finite_observations": 8760,
+      "missing_observations": 0,
+      "valid_samples": 8736,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1991": {
+      "hours": 8760,
+      "time_range": [
+        "1991-01-01 00:00:00",
+        "1991-12-31 23:00:00"
+      ],
+      "finite_observations": 8760,
+      "missing_observations": 0,
+      "valid_samples": 8736,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1992": {
+      "hours": 8784,
+      "time_range": [
+        "1992-01-01 00:00:00",
+        "1992-12-31 23:00:00"
+      ],
+      "finite_observations": 8784,
+      "missing_observations": 0,
+      "valid_samples": 8760,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1993": {
+      "hours": 8760,
+      "time_range": [
+        "1993-01-01 00:00:00",
+        "1993-12-31 23:00:00"
+      ],
+      "finite_observations": 8760,
+      "missing_observations": 0,
+      "valid_samples": 8736,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1994": {
+      "hours": 8760,
+      "time_range": [
+        "1994-01-01 00:00:00",
+        "1994-12-31 23:00:00"
+      ],
+      "finite_observations": 8760,
+      "missing_observations": 0,
+      "valid_samples": 8736,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1995": {
+      "hours": 8760,
+      "time_range": [
+        "1995-01-01 00:00:00",
+        "1995-12-31 23:00:00"
+      ],
+      "finite_observations": 8760,
+      "missing_observations": 0,
+      "valid_samples": 8736,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1996": {
+      "hours": 8784,
+      "time_range": [
+        "1996-01-01 00:00:00",
+        "1996-12-31 23:00:00"
+      ],
+      "finite_observations": 8784,
+      "missing_observations": 0,
+      "valid_samples": 8760,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    },
+    "1997": {
+      "hours": 8752,
+      "time_range": [
+        "1997-01-01 00:00:00",
+        "1997-12-31 15:00:00"
+      ],
+      "finite_observations": 8752,
+      "missing_observations": 0,
+      "valid_samples": 8728,
+      "skipped": {
+        "non_contiguous": 0,
+        "missing_atmosphere": 0,
+        "missing_surge": 0
+      }
+    }
+  },
+  "split_years": {
+    "training": [
+      1975,
+      1995
+    ],
+    "validation": 1996,
+    "test": 1997
+  },
+  "split_valid_samples": {
+    "training": 184056,
+    "validation": 8784,
+    "test": 8752
+  },
+  "common_72h_origins": {
+    "validation": 8713,
+    "test": 8681
+  },
+  "raw_source_coverage": {
+    "gesla": [
+      "1975-01-01T00:00:00+00:00",
+      "1997-12-31T15:00:00+00:00"
+    ],
+    "gesla_selected_period_observation_count": 201616,
+    "era5_yearly_match": [
+      {
+        "year": 1975,
+        "era5_times": 8760,
+        "matched_times": 8760
+      },
+      {
+        "year": 1976,
+        "era5_times": 8784,
+        "matched_times": 8784
+      },
+      {
+        "year": 1977,
+        "era5_times": 8760,
+        "matched_times": 8760
+      },
+      {
+        "year": 1978,
+        "era5_times": 8760,
+        "matched_times": 8760
+      },
+      {
+        "year": 1979,
+        "era5_times": 8760,
+        "matched_times": 8760
+      },
+      {
+        "year": 1980,
+        "era5_times": 8784,
+        "matched_times": 8784
+      },
+      {
+        "year": 1981,
+        "era5_times": 8760,
+        "matched_times": 8760
+      },
+      {
+        "year": 1982,
+        "era5_times": 8760,
+        "matched_times": 8760
+      },
+      {
+        "year": 1983,
+        "era5_times": 8760,
+        "matched_times": 8760
+      },
+      {
+        "year": 1984,
+        "era5_times": 8784,
+        "matched_times": 8784
+      },
+      {
+        "year": 1985,
+        "era5_times": 8760,
+        "matched_times": 8760
+      },
+      {
+        "year": 1986,
+        "era5_times": 8760,
+        "matched_times": 8760
+      },
+      {
+        "year": 1987,
+        "era5_times": 8760,
+        "matched_times": 8760
+      },
+      {
+        "year": 1988,
+        "era5_times": 8784,
+        "matched_times": 8784
+      },
+      {
+        "year": 1989,
+        "era5_times": 8760,
+        "matched_times": 8760
+      },
+      {
+        "year": 1990,
+        "era5_times": 8760,
+        "matched_times": 8760
+      },
+      {
+        "year": 1991,
+        "era5_times": 8760,
+        "matched_times": 8760
+      },
+      {
+        "year": 1992,
+        "era5_times": 8784,
+        "matched_times": 8784
+      },
+      {
+        "year": 1993,
+        "era5_times": 8760,
+        "matched_times": 8760
+      },
+      {
+        "year": 1994,
+        "era5_times": 8760,
+        "matched_times": 8760
+      },
+      {
+        "year": 1995,
+        "era5_times": 8760,
+        "matched_times": 8760
+      },
+      {
+        "year": 1996,
+        "era5_times": 8784,
+        "matched_times": 8784
+      },
+      {
+        "year": 1997,
+        "era5_times": 8760,
+        "matched_times": 8752
+      }
+    ],
+    "era5_files": [
+      "F:\\ERA5-NEW\\Kanmen\\kanmen_10u_1975_1997.nc",
+      "F:\\ERA5-NEW\\Kanmen\\kanmen_v10_1975_1997.nc",
+      "F:\\ERA5-NEW\\Kanmen\\kanmen_slp_1975_1997.nc"
+    ],
+    "era5_source_audit": {
+      "status": "passed",
+      "coordinate_axes_identical": true,
+      "variable_order": [
+        "U10",
+        "V10",
+        "MSL"
+      ],
+      "variables": {
+        "U10": {
+          "file": "F:\\ERA5-NEW\\Kanmen\\kanmen_10u_1975_1997.nc",
+          "source_variable": "u10",
+          "unit": "m s**-1",
+          "time_count": 201624,
+          "time_range": [
+            "1975-01-01T00:00:00",
+            "1997-12-31T23:00:00"
+          ],
+          "latitude_count": 40,
+          "latitude_range": [
+            23.1,
+            32.85
+          ],
+          "longitude_count": 40,
+          "longitude_range": [
+            116.30000000000001,
+            126.05000000000001
+          ]
+        },
+        "V10": {
+          "file": "F:\\ERA5-NEW\\Kanmen\\kanmen_v10_1975_1997.nc",
+          "source_variable": "v10",
+          "unit": "m s**-1",
+          "time_count": 201624,
+          "time_range": [
+            "1975-01-01T00:00:00",
+            "1997-12-31T23:00:00"
+          ],
+          "latitude_count": 40,
+          "latitude_range": [
+            23.1,
+            32.85
+          ],
+          "longitude_count": 40,
+          "longitude_range": [
+            116.30000000000001,
+            126.05000000000001
+          ]
+        },
+        "MSL": {
+          "file": "F:\\ERA5-NEW\\Kanmen\\kanmen_slp_1975_1997.nc",
+          "source_variable": "msl",
+          "unit": "Pa",
+          "time_count": 201624,
+          "time_range": [
+            "1975-01-01T00:00:00",
+            "1997-12-31T23:00:00"
+          ],
+          "latitude_count": 40,
+          "latitude_range": [
+            23.1,
+            32.85
+          ],
+          "longitude_count": 40,
+          "longitude_range": [
+            116.30000000000001,
+            126.05000000000001
+          ]
+        }
+      },
+      "errors": [],
+      "warnings": []
+    }
+  },
+  "gesla_quality_control": {
+    "raw_record_count": 201616,
+    "invalid_datetime_count": 0,
+    "removed_duplicate_count": 0,
+    "removed_missing_count": 0,
+    "removed_quality_flag_count": 0,
+    "removed_bad_qc_flag_count": 0,
+    "removed_bad_use_flag_count": 0,
+    "removed_bad_qc_and_use_count": 0,
+    "removed_unreasonable_count": 0,
+    "final_record_count": 201616,
+    "time_range": [
+      "1975-01-01T00:00:00+00:00",
+      "1997-12-31T15:00:00+00:00"
+    ],
+    "missing_rate": 0.0,
+    "selected_sensor": "default",
+    "sensor_statistics": {
+      "default": {
+        "score": 1.0,
+        "valid_records": 201616,
+        "start": "1975-01-01T00:00:00+00:00",
+        "end": "1997-12-31T15:00:00+00:00",
+        "completeness": 1.0,
+        "hourly_continuity": 1.0,
+        "non_hourly_gaps": 0,
+        "minimum_m": 0.21,
+        "maximum_m": 8.5,
+        "median_m": 3.93
+      }
+    },
+    "quality_flag_counts": {
+      "1": 201616
+    },
+    "use_flag_counts": {
+      "1": 201616
+    },
+    "quality_use_flag_pairs": {
+      "1|1": 201616
+    },
+    "gesla_flag_policy": {
+      "accepted_qc_flags": "0 (not assessed), 1 (correct), 2 (interpolated)",
+      "rejected_qc_flags": [
+        "3",
+        "4",
+        "5",
+        "9",
+        "bad",
+        "fail",
+        "failed",
+        "invalid"
+      ],
+      "rejected_use_flags": [
+        "0",
+        "f",
+        "false",
+        "invalid",
+        "n",
+        "no",
+        "reject"
+      ],
+      "rule": "reject when either the contributor QC flag or GESLA use flag is rejected"
+    }
+  },
+  "errors": [],
+  "warnings": [],
+  "notes": []
+}

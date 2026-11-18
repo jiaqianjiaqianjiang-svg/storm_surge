@@ -1,0 +1,19 @@
+{
+  "loss_type": "mse",
+  "alpha": 2.0,
+  "beta": 1.0,
+  "huber_delta_cm": 5.0,
+  "huber_delta_scaled": 0.2739077158224036,
+  "surge_mean_m": 1.460718525303495e-11,
+  "surge_scale_m": 0.18254323303699493,
+  "q90_probability": 0.9,
+  "q99_probability": 0.99,
+  "raw_q90_m": null,
+  "raw_q99_m": null,
+  "q90_m": null,
+  "q99_m": null,
+  "threshold_unit": "m",
+  "threshold_sample_count": 184056,
+  "positive_threshold_protected": false,
+  "positive_threshold_strategy": "not applicable to ordinary MSE"
+}

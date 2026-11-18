@@ -1,0 +1,56 @@
+{
+  "station_id": "kanmen",
+  "station_name": "Kanmen",
+  "latitude": 28.088,
+  "longitude": 121.282,
+  "gesla_file": "F:\\GESLA\\GESLA3\\kanmen-632a-chn-uhslc",
+  "era5_dir": "F:\\ERA5-NEW\\Kanmen",
+  "era5_files": {
+    "U10": "F:\\ERA5-NEW\\Kanmen\\kanmen_10u_1975_1997.nc",
+    "V10": "F:\\ERA5-NEW\\Kanmen\\kanmen_v10_1975_1997.nc",
+    "MSL": "F:\\ERA5-NEW\\Kanmen\\kanmen_slp_1975_1997.nc"
+  },
+  "data_years": [
+    1975,
+    1997
+  ],
+  "training_years": [
+    1975,
+    1995
+  ],
+  "validation_year": 1996,
+  "test_year": 1997,
+  "input_steps": 24,
+  "grid_size": 40,
+  "variable_order": [
+    "U10",
+    "V10",
+    "MSL"
+  ],
+  "prepared_years": [
+    1975,
+    1997
+  ],
+  "utide_calibration_end_year": 1995,
+  "array_schema": {
+    "atmosphere": [
+      201616,
+      3,
+      40,
+      40
+    ],
+    "surge": [
+      201616
+    ],
+    "time": [
+      201616
+    ],
+    "atmosphere_variable_order": [
+      "U10",
+      "V10",
+      "MSL"
+    ],
+    "surge_unit": "m",
+    "time_standard": "UTC hourly"
+  }
+}

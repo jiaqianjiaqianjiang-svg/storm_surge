@@ -1,0 +1,332 @@
+{
+  "station_id": "kanmen",
+  "station_name": "Kanmen",
+  "latitude": 28.088,
+  "longitude": 121.282,
+  "gesla_file": "F:\\GESLA\\GESLA3\\kanmen-632a-chn-uhslc",
+  "era5_dir": "F:\\ERA5-NEW\\Kanmen",
+  "era5_files": [
+    "F:\\ERA5-NEW\\Kanmen\\kanmen_10u_1975_1997.nc",
+    "F:\\ERA5-NEW\\Kanmen\\kanmen_v10_1975_1997.nc",
+    "F:\\ERA5-NEW\\Kanmen\\kanmen_slp_1975_1997.nc"
+  ],
+  "data_years": [
+    1975,
+    1997
+  ],
+  "training_years": [
+    1975,
+    1995
+  ],
+  "validation_year": 1996,
+  "test_year": 1997,
+  "input_steps": 24,
+  "grid_size": 40,
+  "variable_order": [
+    "U10",
+    "V10",
+    "MSL"
+  ],
+  "start_year": 1975,
+  "end_year": 1997,
+  "utide_calibration_end_year": 1995,
+  "records": 201616,
+  "matched_era5_times": 201616,
+  "missing_era5_times": 0,
+  "era5_source_audit": {
+    "status": "passed",
+    "coordinate_axes_identical": true,
+    "variable_order": [
+      "U10",
+      "V10",
+      "MSL"
+    ],
+    "variables": {
+      "U10": {
+        "file": "F:\\ERA5-NEW\\Kanmen\\kanmen_10u_1975_1997.nc",
+        "source_variable": "u10",
+        "unit": "m s**-1",
+        "time_count": 201624,
+        "time_range": [
+          "1975-01-01T00:00:00",
+          "1997-12-31T23:00:00"
+        ],
+        "latitude_count": 40,
+        "latitude_range": [
+          23.1,
+          32.85
+        ],
+        "longitude_count": 40,
+        "longitude_range": [
+          116.30000000000001,
+          126.05000000000001
+        ]
+      },
+      "V10": {
+        "file": "F:\\ERA5-NEW\\Kanmen\\kanmen_v10_1975_1997.nc",
+        "source_variable": "v10",
+        "unit": "m s**-1",
+        "time_count": 201624,
+        "time_range": [
+          "1975-01-01T00:00:00",
+          "1997-12-31T23:00:00"
+        ],
+        "latitude_count": 40,
+        "latitude_range": [
+          23.1,
+          32.85
+        ],
+        "longitude_count": 40,
+        "longitude_range": [
+          116.30000000000001,
+          126.05000000000001
+        ]
+      },
+      "MSL": {
+        "file": "F:\\ERA5-NEW\\Kanmen\\kanmen_slp_1975_1997.nc",
+        "source_variable": "msl",
+        "unit": "Pa",
+        "time_count": 201624,
+        "time_range": [
+          "1975-01-01T00:00:00",
+          "1997-12-31T23:00:00"
+        ],
+        "latitude_count": 40,
+        "latitude_range": [
+          23.1,
+          32.85
+        ],
+        "longitude_count": 40,
+        "longitude_range": [
+          116.30000000000001,
+          126.05000000000001
+        ]
+      }
+    },
+    "errors": [],
+    "warnings": []
+  },
+  "gesla_raw_time_range": [
+    "1975-01-01T00:00:00+00:00",
+    "1997-12-31T15:00:00+00:00"
+  ],
+  "selected_period_observation_count": 201616,
+  "qc": {
+    "raw_record_count": 201616,
+    "invalid_datetime_count": 0,
+    "removed_duplicate_count": 0,
+    "removed_missing_count": 0,
+    "removed_quality_flag_count": 0,
+    "removed_bad_qc_flag_count": 0,
+    "removed_bad_use_flag_count": 0,
+    "removed_bad_qc_and_use_count": 0,
+    "removed_unreasonable_count": 0,
+    "final_record_count": 201616,
+    "time_range": [
+      "1975-01-01T00:00:00+00:00",
+      "1997-12-31T15:00:00+00:00"
+    ],
+    "missing_rate": 0.0,
+    "selected_sensor": "default",
+    "sensor_statistics": {
+      "default": {
+        "score": 1.0,
+        "valid_records": 201616,
+        "start": "1975-01-01T00:00:00+00:00",
+        "end": "1997-12-31T15:00:00+00:00",
+        "completeness": 1.0,
+        "hourly_continuity": 1.0,
+        "non_hourly_gaps": 0,
+        "minimum_m": 0.21,
+        "maximum_m": 8.5,
+        "median_m": 3.93
+      }
+    },
+    "quality_flag_counts": {
+      "1": 201616
+    },
+    "use_flag_counts": {
+      "1": 201616
+    },
+    "quality_use_flag_pairs": {
+      "1|1": 201616
+    },
+    "gesla_flag_policy": {
+      "accepted_qc_flags": "0 (not assessed), 1 (correct), 2 (interpolated)",
+      "rejected_qc_flags": [
+        "3",
+        "4",
+        "5",
+        "9",
+        "bad",
+        "fail",
+        "failed",
+        "invalid"
+      ],
+      "rejected_use_flags": [
+        "0",
+        "f",
+        "false",
+        "invalid",
+        "n",
+        "no",
+        "reject"
+      ],
+      "rule": "reject when either the contributor QC flag or GESLA use flag is rejected"
+    }
+  },
+  "utide": {
+    "latitude": 28.088,
+    "record_count": 201616,
+    "observed_record_count": 201616,
+    "missing_hourly_observation_count": 0,
+    "time_range": [
+      "1975-01-01 00:00:00+00:00",
+      "1997-12-31 15:00:00+00:00"
+    ],
+    "calibration_end": "1995-12-31T23:00:00+00:00",
+    "calibration_record_count": 184080,
+    "irregular_interval_count": 0,
+    "constituents": [
+      "M2",
+      "S2",
+      "N2",
+      "K1",
+      "O1",
+      "K2",
+      "P1",
+      "NU2",
+      "L2",
+      "Q1",
+      "MU2",
+      "2N2",
+      "T2",
+      "MS4",
+      "M4",
+      "J1",
+      "OO1",
+      "MN4",
+      "M6",
+      "M8"
+    ],
+    "used_supplied_tide_estimate": false,
+    "auxiliary_tide_estimate_compared": false
+  },
+  "years": [
+    {
+      "year": 1975,
+      "era5_times": 8760,
+      "matched_times": 8760
+    },
+    {
+      "year": 1976,
+      "era5_times": 8784,
+      "matched_times": 8784
+    },
+    {
+      "year": 1977,
+      "era5_times": 8760,
+      "matched_times": 8760
+    },
+    {
+      "year": 1978,
+      "era5_times": 8760,
+      "matched_times": 8760
+    },
+    {
+      "year": 1979,
+      "era5_times": 8760,
+      "matched_times": 8760
+    },
+    {
+      "year": 1980,
+      "era5_times": 8784,
+      "matched_times": 8784
+    },
+    {
+      "year": 1981,
+      "era5_times": 8760,
+      "matched_times": 8760
+    },
+    {
+      "year": 1982,
+      "era5_times": 8760,
+      "matched_times": 8760
+    },
+    {
+      "year": 1983,
+      "era5_times": 8760,
+      "matched_times": 8760
+    },
+    {
+      "year": 1984,
+      "era5_times": 8784,
+      "matched_times": 8784
+    },
+    {
+      "year": 1985,
+      "era5_times": 8760,
+      "matched_times": 8760
+    },
+    {
+      "year": 1986,
+      "era5_times": 8760,
+      "matched_times": 8760
+    },
+    {
+      "year": 1987,
+      "era5_times": 8760,
+      "matched_times": 8760
+    },
+    {
+      "year": 1988,
+      "era5_times": 8784,
+      "matched_times": 8784
+    },
+    {
+      "year": 1989,
+      "era5_times": 8760,
+      "matched_times": 8760
+    },
+    {
+      "year": 1990,
+      "era5_times": 8760,
+      "matched_times": 8760
+    },
+    {
+      "year": 1991,
+      "era5_times": 8760,
+      "matched_times": 8760
+    },
+    {
+      "year": 1992,
+      "era5_times": 8784,
+      "matched_times": 8784
+    },
+    {
+      "year": 1993,
+      "era5_times": 8760,
+      "matched_times": 8760
+    },
+    {
+      "year": 1994,
+      "era5_times": 8760,
+      "matched_times": 8760
+    },
+    {
+      "year": 1995,
+      "era5_times": 8760,
+      "matched_times": 8760
+    },
+    {
+      "year": 1996,
+      "era5_times": 8784,
+      "matched_times": 8784
+    },
+    {
+      "year": 1997,
+      "era5_times": 8760,
+      "matched_times": 8752
+    }
+  ]
+}

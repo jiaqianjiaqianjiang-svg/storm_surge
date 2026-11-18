@@ -1,0 +1,64 @@
+{
+  "raw_record_count": 201616,
+  "invalid_datetime_count": 0,
+  "removed_duplicate_count": 0,
+  "removed_missing_count": 0,
+  "removed_quality_flag_count": 0,
+  "removed_bad_qc_flag_count": 0,
+  "removed_bad_use_flag_count": 0,
+  "removed_bad_qc_and_use_count": 0,
+  "removed_unreasonable_count": 0,
+  "final_record_count": 201616,
+  "time_range": [
+    "1975-01-01T00:00:00+00:00",
+    "1997-12-31T15:00:00+00:00"
+  ],
+  "missing_rate": 0.0,
+  "selected_sensor": "default",
+  "sensor_statistics": {
+    "default": {
+      "score": 1.0,
+      "valid_records": 201616,
+      "start": "1975-01-01T00:00:00+00:00",
+      "end": "1997-12-31T15:00:00+00:00",
+      "completeness": 1.0,
+      "hourly_continuity": 1.0,
+      "non_hourly_gaps": 0,
+      "minimum_m": 0.21,
+      "maximum_m": 8.5,
+      "median_m": 3.93
+    }
+  },
+  "quality_flag_counts": {
+    "1": 201616
+  },
+  "use_flag_counts": {
+    "1": 201616
+  },
+  "quality_use_flag_pairs": {
+    "1|1": 201616
+  },
+  "gesla_flag_policy": {
+    "accepted_qc_flags": "0 (not assessed), 1 (correct), 2 (interpolated)",
+    "rejected_qc_flags": [
+      "3",
+      "4",
+      "5",
+      "9",
+      "bad",
+      "fail",
+      "failed",
+      "invalid"
+    ],
+    "rejected_use_flags": [
+      "0",
+      "f",
+      "false",
+      "invalid",
+      "n",
+      "no",
+      "reject"
+    ],
+    "rule": "reject when either the contributor QC flag or GESLA use flag is rejected"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "station_id": "kanmen",
+  "seed": 42,
+  "validation_year": 1996,
+  "test_year": 1997,
+  "models": {
+    "ridge": {
+      "path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\kanmen\\baselines\\ridge_pipeline.joblib",
+      "sha256": "42c2fdf17bc0be67c1be00d830027c413dab6f9a07993ec33227fa1327d7f765"
+    },
+    "cnn_gru": {
+      "path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\kanmen\\formal_seed42\\cnn_gru\\best_model.pth",
+      "sha256": "4fbeb4015ef8e78853a3f5507e5c3f62d4906e129bf3a16e2c0d8310db6c7e1c"
+    },
+    "cnn_gru_rollout6": {
+      "path": "H:\\02_代码与模型\\蒋佳倩_2026-2029_软件工程硕士\\storm_surge\\projects\\xiamen_short_term\\short_term_forecast\\models\\kanmen\\formal_seed42\\cnn_gru_rollout6\\best_model.pth",
+      "sha256": "7abde22c7a38771e03b710a0fab9a2e728086ffb398b965934236419f5478613"
+    }
+  },
+  "selection_rule": "Core models fixed using validation results only; test results must not tune weights or hyperparameters."
+}
